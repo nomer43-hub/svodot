@@ -193,6 +193,28 @@ function wsToArr(wb){
   return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
 }
 
+// Читает лист с автопоиском строки заголовков
+// Ищет строку, содержащую ключевое слово (частичное совпадение)
+function wsToArrAutoHeader(wb, keyword){
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+  let headerRow=0;
+  for(let i=0;i<Math.min(raw.length,20);i++){
+    const found=raw[i].some(cell=>String(cell).includes(keyword));
+    if(found){headerRow=i;break;}
+  }
+  const headers=raw[headerRow];
+  const rows=[];
+  for(let i=headerRow+1;i<raw.length;i++){
+    const row={};
+    headers.forEach((h,ci)=>{if(h)row[String(h).trim()]=raw[i][ci]??'';});
+    // Пропускаем пустые строки
+    if(Object.values(row).every(v=>v===''))continue;
+    rows.push(row);
+  }
+  return rows;
+}
+
 function extractBlock(rows,col){
   const map={};
   rows.forEach(r=>{
@@ -246,12 +268,14 @@ async function run(){
     const m4=extractBlock(wsToArr(wb4),'Итоговый тест');
     addLog(`Блоки: ${Object.keys(m1).length} записей`);setProgress(45);
 
-    const empRows=wsToArr(wbEmp);
+    const empRows=wsToArrAutoHeader(wbEmp,'Физическое лицо');
     const empMap={};
     empRows.forEach(r=>{
       const kod=parseInt(r['Сотрудник.Физическое лицо.Код']||r['Код']||0);
       if(!kod||isNaN(kod))return;
-      empMap[kod]={ФИО:r['Сотрудник']||r['Пользователь']||'',Подразделение:r['Подразделение']||'',РД:r['Подразделение.Вышестоящее подразделение']||r['РД']||'',Должность:r['Должность']||'',Дата:r['Дата приема']||r['Дата приёма']||''};
+      const rd=String(r['Подразделение.Вышестоящее подразделение']||r['РД']||'');
+      if(rd&&!rd.startsWith('РД-'))return; // игнорируем операторов и прочих не-магазинных
+      empMap[kod]={ФИО:r['Сотрудник']||r['Пользователь']||'',Подразделение:r['Подразделение']||'',РД:rd,Должность:r['Должность']||'',Дата:r['Дата приема']||r['Дата приёма']||''};
     });
     addLog(`Сотрудников: ${Object.keys(empMap).length}`);setProgress(60);
 
