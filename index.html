@@ -5,50 +5,73 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Свод обучения — Охрана труда</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f6fa;min-height:100vh;padding:2rem 1rem}
-  .container{max-width:680px;margin:0 auto}
-  .header{text-align:center;margin-bottom:2rem}
-  .header h1{font-size:22px;font-weight:600;color:#1a1a2e;margin-bottom:6px}
-  .header p{font-size:14px;color:#666;line-height:1.5}
-  .card{background:#fff;border-radius:12px;padding:1.5rem;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:1rem}
-  .card-title{font-size:13px;font-weight:600;color:#444;text-transform:uppercase;letter-spacing:.5px;margin-bottom:1rem}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:0}
-  .drop{border:1.5px dashed #d0d5dd;border-radius:8px;padding:14px;cursor:pointer;transition:all .15s;position:relative;background:#fafafa}
-  .drop:hover{border-color:#185FA5;background:#f0f7ff}
-  .drop.ok{border-color:#3B6D11;border-style:solid;background:#f0faf0}
-  .drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-  .dlabel{font-size:11px;color:#888;margin-bottom:4px;font-weight:500}
-  .drop.ok .dlabel{color:#3B6D11}
-  .dname{font-size:12px;font-weight:500;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .dico{font-size:16px;margin-bottom:6px}
-  .emp-drop{border:1.5px dashed #d0d5dd;border-radius:8px;padding:14px 16px;cursor:pointer;transition:all .15s;position:relative;background:#fafafa;display:flex;align-items:center;gap:12px;margin-top:10px}
-  .emp-drop:hover{border-color:#185FA5;background:#f0f7ff}
-  .emp-drop.ok{border-color:#3B6D11;border-style:solid;background:#f0faf0}
-  .emp-drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-  .emp-drop.ok .dlabel{color:#3B6D11}
-  .btn{width:100%;padding:13px;border-radius:8px;border:none;font-size:15px;font-weight:600;cursor:pointer;transition:all .15s;margin-top:1rem}
-  .btn-go{background:#185FA5;color:#fff}
-  .btn-go:hover:not(:disabled){background:#0C447C}
-  .btn-go:disabled{background:#aac4e0;cursor:not-allowed}
-  .log{background:#f8f9fa;border-radius:8px;padding:12px 14px;font-size:12px;color:#555;line-height:1.8;margin-top:1rem;display:none;border-left:3px solid #185FA5}
-  .log.show{display:block}
-  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:1rem;display:none}
-  .stats.show{display:grid}
-  .scard{border-radius:8px;padding:14px;text-align:center}
-  .scard .n{font-size:24px;font-weight:700;margin-bottom:4px}
-  .scard .l{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.3px}
-  .scard.green{background:#f0faf0}.scard.green .n{color:#3B6D11}.scard.green .l{color:#5a9a30}
-  .scard.red{background:#fff5f5}.scard.red .n{color:#A32D2D}.scard.red .l{color:#c0392b}
-  .scard.yellow{background:#fffbf0}.scard.yellow .n{color:#854F0B}.scard.yellow .l{color:#b07a2a}
-  .privacy{font-size:11px;color:#999;text-align:center;margin-top:1.5rem;line-height:1.6}
-  .privacy strong{color:#666}
-  .check{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}
-  .check.green{background:#3B6D11}
-  .progress{height:4px;background:#e9ecef;border-radius:4px;margin-top:.75rem;overflow:hidden;display:none}
-  .progress.show{display:block}
-  .progress-bar{height:100%;background:#185FA5;width:0%;transition:width .3s;border-radius:4px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f6fa;min-height:100vh;padding:2rem 1rem}
+.container{max-width:720px;margin:0 auto}
+.header{text-align:center;margin-bottom:2rem}
+.header h1{font-size:22px;font-weight:600;color:#1a1a2e;margin-bottom:6px}
+.header p{font-size:14px;color:#666;line-height:1.5}
+.card{background:#fff;border-radius:12px;padding:1.5rem;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:1rem}
+.card-title{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.8px;margin-bottom:1rem}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.drop{border:1.5px dashed #d0d5dd;border-radius:8px;padding:14px;cursor:pointer;transition:all .15s;position:relative;background:#fafafa}
+.drop:hover{border-color:#185FA5;background:#f0f7ff}
+.drop.ok{border-color:#3B6D11;border-style:solid;background:#f0faf0}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dlabel{font-size:11px;color:#888;margin-bottom:4px;font-weight:500}
+.drop.ok .dlabel{color:#3B6D11}
+.dname{font-size:12px;font-weight:500;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dico{font-size:16px;margin-bottom:6px}
+.emp-drop{border:1.5px dashed #d0d5dd;border-radius:8px;padding:14px 16px;cursor:pointer;transition:all .15s;position:relative;background:#fafafa;display:flex;align-items:center;gap:12px;margin-top:10px}
+.emp-drop:hover{border-color:#185FA5;background:#f0f7ff}
+.emp-drop.ok{border-color:#3B6D11;border-style:solid;background:#f0faf0}
+.emp-drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.emp-drop.ok .dlabel{color:#3B6D11}
+.param-row{display:flex;align-items:center;gap:10px}
+.param-row label{font-size:13px;color:#555}
+.param-row input{width:70px;padding:6px 8px;border:1px solid #d0d5dd;border-radius:6px;font-size:14px;text-align:center}
+.btn{width:100%;padding:13px;border-radius:8px;border:none;font-size:15px;font-weight:600;cursor:pointer;transition:all .15s;margin-top:1rem}
+.btn-go{background:#185FA5;color:#fff}
+.btn-go:hover:not(:disabled){background:#0C447C}
+.btn-go:disabled{background:#aac4e0;cursor:not-allowed}
+.progress{height:4px;background:#e9ecef;border-radius:4px;margin-top:.75rem;overflow:hidden;display:none}
+.progress.show{display:block}
+.progress-bar{height:100%;background:#185FA5;width:0%;transition:width .3s;border-radius:4px}
+.log{background:#f8f9fa;border-radius:8px;padding:12px 14px;font-size:12px;color:#555;line-height:1.8;margin-top:1rem;display:none;border-left:3px solid #185FA5}
+.log.show{display:block}
+
+/* Статистика */
+.stat-section{display:none;margin-top:1.5rem}
+.stat-section.show{display:block}
+.stat-header{font-size:13px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.8px;margin-bottom:1rem;text-align:center}
+.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1.5rem}
+.kpi{border-radius:10px;padding:16px 12px;text-align:center}
+.kpi .n{font-size:28px;font-weight:700;margin-bottom:4px}
+.kpi .pct{font-size:13px;font-weight:600;margin-bottom:2px}
+.kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.3px}
+.kpi.green{background:#f0faf0}.kpi.green .n{color:#3B6D11}.kpi.green .pct{color:#5a9a30}.kpi.green .l{color:#7ab850}
+.kpi.red{background:#fff5f5}.kpi.red .n{color:#A32D2D}.kpi.red .pct{color:#c0392b}.kpi.red .l{color:#d44}
+.kpi.yellow{background:#fffbf0}.kpi.yellow .n{color:#854F0B}.kpi.yellow .pct{color:#b07a2a}.kpi.yellow .l{color:#c9952f}
+.kpi.blue{background:#f0f7ff}.kpi.blue .n{color:#185FA5}.kpi.blue .pct{color:#2176c4}.kpi.blue .l{color:#4a90d9}
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+.chart-box{background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.chart-box h3{font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.75rem;text-align:center}
+.chart-wrap{position:relative;height:200px}
+
+/* Прогресс-бар в секции */
+.pbar-wrap{background:#fff;border-radius:10px;padding:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:1rem}
+.pbar-wrap h3{font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:1rem}
+.pbar-row{margin-bottom:12px}
+.pbar-label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+.pbar-label span:first-child{color:#333;font-weight:500}
+.pbar-label span:last-child{color:#888}
+.pbar-track{height:10px;background:#f0f0f0;border-radius:6px;overflow:hidden}
+.pbar-fill{height:100%;border-radius:6px;transition:width .6s ease}
+
+.privacy{font-size:11px;color:#999;text-align:center;margin-top:1.5rem;line-height:1.6}
+.privacy strong{color:#666}
 </style>
 </head>
 <body>
@@ -74,19 +97,52 @@
 
   <div class="card">
     <div class="card-title">Параметры</div>
-    <div style="display:flex;align-items:center;gap:10px">
-      <label style="font-size:13px;color:#555">Срок обучения (дней):</label>
-      <input type="number" id="deadline" value="60" min="1" max="365" style="width:70px;padding:6px 8px;border:1px solid #d0d5dd;border-radius:6px;font-size:14px;text-align:center">
+    <div class="param-row">
+      <label>Срок обучения (дней):</label>
+      <input type="number" id="deadline" value="60" min="1" max="365">
     </div>
   </div>
 
   <button class="btn btn-go" id="runBtn" onclick="run()" disabled>Сформировать свод ↓</button>
   <div class="progress" id="prog"><div class="progress-bar" id="progbar"></div></div>
   <div class="log" id="log"></div>
-  <div class="stats" id="stat">
-    <div class="scard green"><div class="n" id="sg">—</div><div class="l">Обучены</div></div>
-    <div class="scard red"><div class="n" id="sr">—</div><div class="l">Просрочено</div></div>
-    <div class="scard yellow"><div class="n" id="sy">—</div><div class="l">В сроках</div></div>
+
+  <!-- Статистика в браузере -->
+  <div class="stat-section" id="statSection">
+    <div class="stat-header">Статистика на <span id="statDate"></span></div>
+
+    <div class="kpi-grid">
+      <div class="kpi green"><div class="n" id="kGreen">—</div><div class="pct" id="kGreenPct">—</div><div class="l">Обучены</div></div>
+      <div class="kpi red"><div class="n" id="kRed">—</div><div class="pct" id="kRedPct">—</div><div class="l">Просрочено</div></div>
+      <div class="kpi yellow"><div class="n" id="kYellow">—</div><div class="pct" id="kYellowPct">—</div><div class="l">В сроках</div></div>
+    </div>
+
+    <div class="pbar-wrap">
+      <h3>Действующие сотрудники</h3>
+      <div class="pbar-row">
+        <div class="pbar-label"><span>Обучены</span><span id="pb1lbl"></span></div>
+        <div class="pbar-track"><div class="pbar-fill" id="pb1" style="background:#3B6D11;width:0%"></div></div>
+      </div>
+      <div class="pbar-row">
+        <div class="pbar-label"><span>Просрочено (&gt;60 дн)</span><span id="pb2lbl"></span></div>
+        <div class="pbar-track"><div class="pbar-fill" id="pb2" style="background:#A32D2D;width:0%"></div></div>
+      </div>
+      <div class="pbar-row">
+        <div class="pbar-label"><span>В сроках (≤60 дн)</span><span id="pb3lbl"></span></div>
+        <div class="pbar-track"><div class="pbar-fill" id="pb3" style="background:#854F0B;width:0%"></div></div>
+      </div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-box">
+        <h3>Действующие — статус</h3>
+        <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <h3>За всё время (с уволенными)</h3>
+        <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+      </div>
+    </div>
   </div>
 
   <div class="privacy">
@@ -97,6 +153,7 @@
 
 <script>
 const files={};
+let pieChartInst=null,barChartInst=null;
 
 function setFile(key,inp,num){
   if(!inp.files[0])return;
@@ -116,8 +173,7 @@ function addLog(msg){
 }
 
 function setProgress(pct){
-  const p=document.getElementById('prog');
-  p.classList.add('show');
+  document.getElementById('prog').classList.add('show');
   document.getElementById('progbar').style.width=pct+'%';
 }
 
@@ -125,38 +181,26 @@ function readWB(file){
   return new Promise((res,rej)=>{
     const r=new FileReader();
     r.onload=e=>{
-      try{
-        const data=new Uint8Array(e.target.result);
-        const wb=XLSX.read(data,{type:'array',cellDates:true});
-        res(wb);
-      }catch(err){rej(err);}
+      try{res(XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true}));}
+      catch(err){rej(err);}
     };
-    r.onerror=()=>rej(new Error('Ошибка чтения файла'));
+    r.onerror=()=>rej(new Error('Ошибка чтения: '+file.name));
     r.readAsArrayBuffer(file);
   });
 }
 
 function wsToArr(wb){
-  const ws=wb.Sheets[wb.SheetNames[0]];
-  return XLSX.utils.sheet_to_json(ws,{defval:''});
+  return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
 }
 
-function extractBlock(rows,colName){
+function extractBlock(rows,col){
   const map={};
   rows.forEach(r=>{
-    let kod=parseInt(r['Код']);
+    const kod=parseInt(r['Код']);
     if(!kod||isNaN(kod))return;
     const st=String(r['Статус']||'');
-    if(!map[kod]||st==='Пройден'){
-      map[kod]={
-        Пользователь:r['Пользователь']||'',
-        Код:kod,
-        РД:r['РД']||'',
-        Подразделение:r['Подразделение']||'',
-        Должность:r['Должность']||'',
-        [colName]:st
-      };
-    }
+    if(!map[kod]||st==='Пройден')
+      map[kod]={Пользователь:r['Пользователь']||'',Код:kod,РД:r['РД']||'',Подразделение:r['Подразделение']||'',Должность:r['Должность']||'',[col]:st};
   });
   return map;
 }
@@ -166,7 +210,7 @@ function parseDate(v){
   if(v instanceof Date&&!isNaN(v))return v;
   const s=String(v).trim();
   const m=s.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-  if(m)return new Date(parseInt(m[3]),parseInt(m[2])-1,parseInt(m[1]));
+  if(m)return new Date(+m[3],+m[2]-1,+m[1]);
   const d=new Date(s);
   return isNaN(d)?null:d;
 }
@@ -177,119 +221,93 @@ function fmtDate(v){
   return d.toLocaleDateString('ru-RU');
 }
 
+function makeBar(pct,len=20){
+  const filled=Math.round(pct/100*len);
+  return '█'.repeat(filled)+'░'.repeat(len-filled);
+}
+
 async function run(){
   document.getElementById('log').innerHTML='';
-  document.getElementById('stat').classList.remove('show');
   document.getElementById('prog').classList.remove('show');
+  document.getElementById('statSection').classList.remove('show');
   const btn=document.getElementById('runBtn');
-  btn.disabled=true;
-  btn.textContent='Обрабатываю...';
-  const DAYS_LIMIT=parseInt(document.getElementById('deadline').value)||60;
+  btn.disabled=true;btn.textContent='Обрабатываю...';
+  const DAYS=parseInt(document.getElementById('deadline').value)||60;
   const TODAY=new Date();
 
   try{
-    addLog('Читаю файлы...');
-    setProgress(10);
-    const [wb1,wb2,wb3,wb4,wbEmp]=await Promise.all([
-      readWB(files.b1),readWB(files.b2),readWB(files.b3),readWB(files.it),readWB(files.emp)
-    ]);
+    addLog('Читаю файлы...');setProgress(10);
+    const [wb1,wb2,wb3,wb4,wbEmp]=await Promise.all([readWB(files.b1),readWB(files.b2),readWB(files.b3),readWB(files.it),readWB(files.emp)]);
     setProgress(30);
 
     const m1=extractBlock(wsToArr(wb1),'Блок 1');
     const m2=extractBlock(wsToArr(wb2),'Блок 2');
     const m3=extractBlock(wsToArr(wb3),'Блок 3');
     const m4=extractBlock(wsToArr(wb4),'Итоговый тест');
-    addLog(`Блоки загружены: ${Object.keys(m1).length} записей`);
-    setProgress(50);
+    addLog(`Блоки: ${Object.keys(m1).length} записей`);setProgress(45);
 
     const empRows=wsToArr(wbEmp);
     const empMap={};
     empRows.forEach(r=>{
-      let kod=parseInt(r['Сотрудник.Физическое лицо.Код']||r['Код']||0);
+      const kod=parseInt(r['Сотрудник.Физическое лицо.Код']||r['Код']||0);
       if(!kod||isNaN(kod))return;
-      empMap[kod]={
-        ФИО:r['Сотрудник']||r['Пользователь']||'',
-        Подразделение:r['Подразделение']||'',
-        РД:r['Подразделение.Вышестоящее подразделение']||r['РД']||'',
-        Должность:r['Должность']||'',
-        Дата:r['Дата приема']||r['Дата приёма']||''
-      };
+      empMap[kod]={ФИО:r['Сотрудник']||r['Пользователь']||'',Подразделение:r['Подразделение']||'',РД:r['Подразделение.Вышестоящее подразделение']||r['РД']||'',Должность:r['Должность']||'',Дата:r['Дата приема']||r['Дата приёма']||''};
     });
-    addLog(`Действующих сотрудников: ${Object.keys(empMap).length}`);
-    setProgress(65);
+    addLog(`Сотрудников: ${Object.keys(empMap).length}`);setProgress(60);
 
     const allKods=new Set([...Object.keys(m1),...Object.keys(m2),...Object.keys(m3),...Object.keys(m4)].map(Number));
     const activeKods=new Set(Object.keys(empMap).map(Number));
 
-    const buildRow=(kod)=>{
+    const buildRow=kod=>{
       const emp=empMap[kod];
-      const a1=m1[kod]||{};const a2=m2[kod]||{};const a3=m3[kod]||{};const a4=m4[kod]||{};
+      const a1=m1[kod]||{},a2=m2[kod]||{},a3=m3[kod]||{},a4=m4[kod]||{};
       const base=a1.Пользователь?a1:(a2.Пользователь?a2:(a3.Пользователь?a3:a4));
-      const b1s=String(a1['Блок 1']||'');
-      const b2s=String(a2['Блок 2']||'');
-      const b3s=String(a3['Блок 3']||'');
-      const its=String(a4['Итоговый тест']||'');
-      const passed=[b1s,b2s,b3s,its].every(s=>s==='Пройден');
-      const status=passed?'пройдено':'не пройдено';
+      const b1=String(a1['Блок 1']||''),b2=String(a2['Блок 2']||''),b3=String(a3['Блок 3']||''),it=String(a4['Итоговый тест']||'');
+      const passed=[b1,b2,b3,it].every(s=>s==='Пройден');
       const dateVal=emp?emp.Дата:'';
       const d=parseDate(dateVal);
-      const days=d?Math.floor((TODAY-d)/(86400000)):null;
-      let color=passed?'green':(days===null||days>DAYS_LIMIT?'red':'yellow');
+      const days=d?Math.floor((TODAY-d)/86400000):null;
+      const color=passed?'green':(days===null||days>DAYS?'red':'yellow');
       return{
-        РД:emp?emp.РД:(base.РД||''),
-        Подразделение:emp?emp.Подразделение:(base.Подразделение||''),
-        ФИО:emp?emp.ФИО:(base.Пользователь||''),
-        Код:kod,
-        Должность:emp?emp.Должность:(base.Должность||''),
-        'Дата приёма':fmtDate(dateVal),
-        'Блок 1':b1s||'Не назначен',
-        'Блок 2':b2s||'Не назначен',
-        'Блок 3':b3s||'Не назначен',
-        'Итоговый тест':its||'Не назначен',
-        'Статус обучения':status,
-        _color:color,_active:activeKods.has(kod)
+        РД:emp?emp.РД:(base.РД||''),Подразделение:emp?emp.Подразделение:(base.Подразделение||''),
+        ФИО:emp?emp.ФИО:(base.Пользователь||''),Код:kod,Должность:emp?emp.Должность:(base.Должность||''),
+        'Дата приёма':fmtDate(dateVal),'Блок 1':b1||'Не назначен','Блок 2':b2||'Не назначен',
+        'Блок 3':b3||'Не назначен','Итоговый тест':it||'Не назначен',
+        'Статус обучения':passed?'пройдено':'не пройдено',_color:color,_active:activeKods.has(kod)
       };
     };
 
-    const allRows=[];const processed=new Set();
-    activeKods.forEach(k=>{allRows.push(buildRow(k));processed.add(k);});
-    allKods.forEach(k=>{if(!processed.has(k)){allRows.push(buildRow(k));processed.add(k);}});
+    const allRows=[];const done=new Set();
+    activeKods.forEach(k=>{allRows.push(buildRow(k));done.add(k);});
+    allKods.forEach(k=>{if(!done.has(k)){allRows.push(buildRow(k));done.add(k);}});
     const activeRows=allRows.filter(r=>r._active);
-
-    setProgress(80);
 
     const green=activeRows.filter(r=>r._color==='green').length;
     const red=activeRows.filter(r=>r._color==='red').length;
     const yellow=activeRows.filter(r=>r._color==='yellow').length;
     const trainedAll=allRows.filter(r=>r['Статус обучения']==='пройдено').length;
+    const total=activeRows.length;
+    const totalAll=allRows.length;
 
-    addLog(`Всего: ${allRows.length} | Действующих: ${activeRows.length} | Уволенных: ${allRows.length-activeRows.length}`);
+    setProgress(75);addLog(`Всего: ${totalAll} | Действующих: ${total} | Уволенных: ${totalAll-total}`);
 
-    const FILLS={
-      green:{fgColor:{rgb:'C6EFCE'}},
-      red:{fgColor:{rgb:'FFC7CE'}},
-      yellow:{fgColor:{rgb:'FFEB9C'}},
-      header:{fgColor:{rgb:'2F5496'}},
-      subheader:{fgColor:{rgb:'4472C4'}},
-      stat_green:{fgColor:{rgb:'EAF3DE'}},
-      stat_red:{fgColor:{rgb:'FCEBEB'}},
-      stat_yellow:{fgColor:{rgb:'FAEEDA'}}
+    // ─── Excel ───────────────────────────────────────────────────────────────
+    const FLS={
+      green:{fgColor:{rgb:'C6EFCE'}},red:{fgColor:{rgb:'FFC7CE'}},yellow:{fgColor:{rgb:'FFEB9C'}},
+      hdr:{fgColor:{rgb:'2F5496'}},sub:{fgColor:{rgb:'4472C4'}},
+      sg:{fgColor:{rgb:'EAF3DE'}},sr:{fgColor:{rgb:'FCEBEB'}},sy:{fgColor:{rgb:'FAEEDA'}}
     };
-
-    const hs={fill:FILLS.header,font:{bold:true,color:{rgb:'FFFFFF'},sz:10},alignment:{horizontal:'center',vertical:'center',wrapText:true}};
-    const cs={font:{sz:9},alignment:{vertical:'center'}};
-    const cs_c={font:{sz:9},alignment:{horizontal:'center',vertical:'center'}};
+    const HS={fill:FLS.hdr,font:{bold:true,color:{rgb:'FFFFFF'},sz:10},alignment:{horizontal:'center',vertical:'center',wrapText:true}};
 
     function makeSheet(rows){
       const ws={};
-      const headers=['РД','Подразделение','ФИО','Код','Должность','Дата приёма','Блок 1','Блок 2','Блок 3','Итоговый тест','Статус обучения'];
-      headers.forEach((h,ci)=>{const a=XLSX.utils.encode_cell({r:0,c:ci});ws[a]={v:h,t:'s',s:hs};});
+      const H=['РД','Подразделение','ФИО','Код','Должность','Дата приёма','Блок 1','Блок 2','Блок 3','Итоговый тест','Статус обучения'];
+      H.forEach((h,ci)=>{ws[XLSX.utils.encode_cell({r:0,c:ci})]={v:h,t:'s',s:HS};});
       rows.forEach((row,ri)=>{
-        const fill=FILLS[row._color]||FILLS.red;
-        headers.forEach((h,ci)=>{
-          const a=XLSX.utils.encode_cell({r:ri+1,c:ci});
-          const isStatus=h==='Статус обучения';
-          ws[a]={v:String(row[h]??''),t:'s',s:isStatus?{fill,font:{sz:9,bold:true},alignment:{horizontal:'center',vertical:'center'}}:{font:{sz:9},alignment:{vertical:'center'}}};
+        const fill=FLS[row._color]||FLS.red;
+        H.forEach((h,ci)=>{
+          const isS=h==='Статус обучения';
+          ws[XLSX.utils.encode_cell({r:ri+1,c:ci})]={v:String(row[h]??''),t:'s',s:isS?{fill,font:{sz:9,bold:true},alignment:{horizontal:'center',vertical:'center'}}:{font:{sz:9},alignment:{vertical:'center'}}};
         });
       });
       ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:10}});
@@ -298,49 +316,71 @@ async function run(){
       return ws;
     }
 
-    const dateFmt=new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'}).format(TODAY);
-
     function makeStatSheet(){
       const ws={};
-      const rows=[
-        {v:'ЗА ВСЁ ВРЕМЯ ОБУЧЕНИЯ (включая уволенных)',s:{fill:FILLS.header,font:{bold:true,color:{rgb:'FFFFFF'},sz:11},alignment:{horizontal:'left',vertical:'center'}}},
-        null,
-        {v:'Показатель',s:{fill:FILLS.subheader,font:{bold:true,color:{rgb:'FFFFFF'},sz:10},alignment:{horizontal:'left',vertical:'center'}}},
+      const dt=TODAY.toLocaleDateString('ru-RU');
+      const pGreen=(green/total*100).toFixed(1);
+      const pRed=(red/total*100).toFixed(1);
+      const pYellow=(yellow/total*100).toFixed(1);
+      const pTrainedAll=(trainedAll/totalAll*100).toFixed(1);
+      const pNotAll=((totalAll-trainedAll)/totalAll*100).toFixed(1);
+
+      const c=(r,ci,v,s)=>{ws[XLSX.utils.encode_cell({r,c:ci})]={v:String(v??''),t:'s',s};};
+      const hS=f=>({fill:f,font:{bold:true,color:{rgb:'FFFFFF'},sz:11},alignment:{horizontal:'left',vertical:'center'}});
+      const shS=f=>({fill:f,font:{bold:true,color:{rgb:'FFFFFF'},sz:10},alignment:{horizontal:'center',vertical:'center'}});
+      const dS=(f,fc)=>({fill:f||{fgColor:{rgb:'FFFFFF'}},font:{sz:10,color:{rgb:fc||'000000'}},alignment:{horizontal:'left',vertical:'center'}});
+      const nS=(f,fc)=>({fill:f||{fgColor:{rgb:'FFFFFF'}},font:{sz:11,bold:true,color:{rgb:fc||'000000'}},alignment:{horizontal:'center',vertical:'center'}});
+      const pS=(f,fc)=>({fill:f||{fgColor:{rgb:'FFFFFF'}},font:{sz:10,color:{rgb:fc||'666666'}},alignment:{horizontal:'center',vertical:'center'}});
+
+      // Блок 1: Действующие
+      c(0,0,'ДЕЙСТВУЮЩИЕ СОТРУДНИКИ — '+dt,hS(FLS.hdr));c(0,1,'',hS(FLS.hdr));c(0,2,'',hS(FLS.hdr));c(0,3,'',hS(FLS.hdr));
+      c(1,0,'Категория',shS(FLS.sub));c(1,1,'Сотрудников',shS(FLS.sub));c(1,2,'Доля',shS(FLS.sub));c(1,3,'Прогресс',shS(FLS.sub));
+
+      const activeData=[
+        ['Всего действующих',total,'100%',makeBar(100),null,null],
+        ['Обучены',green,pGreen+'%',makeBar(+pGreen),FLS.sg,'3B6D11'],
+        ['Не обучены — срок истёк >'+DAYS+' дн',red,pRed+'%',makeBar(+pRed),FLS.sr,'A32D2D'],
+        ['Не обучены — в сроках ≤'+DAYS+' дн',yellow,pYellow+'%',makeBar(+pYellow),FLS.sy,'854F0B'],
       ];
-      const data=[
-        ['ЗА ВСЁ ВРЕМЯ ОБУЧЕНИЯ (включая уволенных)','',''],
-        ['Показатель','Сотрудников','Доля'],
-        ['Всего в системе обучения',allRows.length,'100%'],
-        ['Прошли обучение',trainedAll,(trainedAll/allRows.length*100).toFixed(1)+'%'],
-        ['Не завершили обучение',allRows.length-trainedAll,((allRows.length-trainedAll)/allRows.length*100).toFixed(1)+'%'],
-        ['','',''],
-        ['ДЕЙСТВУЮЩИЕ СОТРУДНИКИ (на '+dateFmt+')','',''],
-        ['Показатель','Сотрудников','Доля'],
-        ['Всего действующих',activeRows.length,'100%'],
-        ['Обучены',green,(green/activeRows.length*100).toFixed(1)+'%'],
-        ['Не обучены — срок истёк >'+DAYS_LIMIT+' дн',red,(red/activeRows.length*100).toFixed(1)+'%'],
-        ['Не обучены — в сроках ≤'+DAYS_LIMIT+' дн',yellow,(yellow/activeRows.length*100).toFixed(1)+'%'],
-      ];
-      const fmap={0:FILLS.header,1:FILLS.subheader,6:FILLS.header,7:FILLS.subheader,9:FILLS.stat_green,10:FILLS.stat_red,11:FILLS.stat_yellow};
-      const fwmap={0:true,1:true,6:true,7:true};
-      data.forEach((row,ri)=>{
-        row.forEach((val,ci)=>{
-          const a=XLSX.utils.encode_cell({r:ri,c:ci});
-          const fill=fmap[ri]?{fill:fmap[ri]}:{};
-          const isTitleRow=ri===0||ri===6;
-          const isHeaderRow=ri===1||ri===7;
-          const font=(isTitleRow||isHeaderRow)?{bold:true,color:{rgb:'FFFFFF'},sz:isTitleRow?11:10}:{sz:10};
-          ws[a]={v:String(val),t:'s',s:{...fill,font,alignment:{horizontal:ci===0?'left':'center',vertical:'center'}}};
-        });
+      activeData.forEach(([label,cnt,pct,bar,fill,fc],i)=>{
+        const r=2+i;
+        c(r,0,label,dS(fill,fc));
+        c(r,1,cnt,nS(fill,fc));
+        c(r,2,pct,pS(fill,fc));
+        c(r,3,bar,{fill:fill||{fgColor:{rgb:'F5F5F5'}},font:{sz:9,color:{rgb:fc||'888888'},name:'Courier New'},alignment:{horizontal:'left',vertical:'center'}});
       });
-      ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:data.length,c:2}});
-      ws['!cols']=[{wch:46},{wch:16},{wch:12}];
+
+      // Разрыв
+      c(7,0,'',{});
+
+      // Блок 2: Всё время
+      c(8,0,'ЗА ВСЁ ВРЕМЯ ОБУЧЕНИЯ (включая уволенных)',hS(FLS.hdr));c(8,1,'',hS(FLS.hdr));c(8,2,'',hS(FLS.hdr));c(8,3,'',hS(FLS.hdr));
+      c(9,0,'Категория',shS(FLS.sub));c(9,1,'Сотрудников',shS(FLS.sub));c(9,2,'Доля',shS(FLS.sub));c(9,3,'Прогресс',shS(FLS.sub));
+
+      const allData=[
+        ['Всего в системе',totalAll,'100%',makeBar(100),null,null],
+        ['Прошли обучение',trainedAll,pTrainedAll+'%',makeBar(+pTrainedAll),FLS.sg,'3B6D11'],
+        ['Не завершили',totalAll-trainedAll,pNotAll+'%',makeBar(+pNotAll),FLS.sr,'A32D2D'],
+      ];
+      allData.forEach(([label,cnt,pct,bar,fill,fc],i)=>{
+        const r=10+i;
+        c(r,0,label,dS(fill,fc));
+        c(r,1,cnt,nS(fill,fc));
+        c(r,2,pct,pS(fill,fc));
+        c(r,3,bar,{fill:fill||{fgColor:{rgb:'F5F5F5'}},font:{sz:9,color:{rgb:fc||'888888'},name:'Courier New'},alignment:{horizontal:'left',vertical:'center'}});
+      });
+
+      ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:13,c:3}});
+      ws['!cols']=[{wch:42},{wch:16},{wch:10},{wch:24}];
+      ws['!rows']=[{hpt:22},{hpt:18},{hpt:20},{hpt:20},{hpt:20},{hpt:20},,{hpt:8},{hpt:22},{hpt:18},{hpt:20},{hpt:20},{hpt:20}];
+      ws['!merges']=[
+        {s:{r:0,c:0},e:{r:0,c:3}},
+        {s:{r:8,c:0},e:{r:8,c:3}},
+      ];
       return ws;
     }
 
-    setProgress(90);
-    addLog('Формирую Excel...');
-
+    setProgress(88);addLog('Формирую Excel...');
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,makeSheet(allRows),'С уволенными');
     XLSX.utils.book_append_sheet(wb,makeSheet(activeRows),'Без уволенных');
@@ -348,24 +388,57 @@ async function run(){
 
     const dd=String(TODAY.getDate()).padStart(2,'0');
     const mm=String(TODAY.getMonth()+1).padStart(2,'0');
-    const yyyy=TODAY.getFullYear();
-    const fname=`Свод_ОТ_${dd}_${mm}_${yyyy}.xlsx`;
+    const fname=`Свод_ОТ_${dd}_${mm}_${TODAY.getFullYear()}.xlsx`;
     XLSX.writeFile(wb,fname,{bookType:'xlsx',cellStyles:true});
+    setProgress(100);addLog('✓ Скачан: '+fname);
 
-    setProgress(100);
-    addLog('✓ Файл скачан: '+fname);
+    // ─── Браузерная статистика ────────────────────────────────────────────────
+    document.getElementById('statDate').textContent=TODAY.toLocaleDateString('ru-RU');
+    document.getElementById('kGreen').textContent=green.toLocaleString('ru');
+    document.getElementById('kGreenPct').textContent=(green/total*100).toFixed(1)+'%';
+    document.getElementById('kRed').textContent=red.toLocaleString('ru');
+    document.getElementById('kRedPct').textContent=(red/total*100).toFixed(1)+'%';
+    document.getElementById('kYellow').textContent=yellow.toLocaleString('ru');
+    document.getElementById('kYellowPct').textContent=(yellow/total*100).toFixed(1)+'%';
 
-    document.getElementById('sg').textContent=green.toLocaleString('ru');
-    document.getElementById('sr').textContent=red.toLocaleString('ru');
-    document.getElementById('sy').textContent=yellow.toLocaleString('ru');
-    document.getElementById('stat').classList.add('show');
+    // Прогресс-бары
+    setTimeout(()=>{
+      document.getElementById('pb1').style.width=(green/total*100)+'%';
+      document.getElementById('pb2').style.width=(red/total*100)+'%';
+      document.getElementById('pb3').style.width=(yellow/total*100)+'%';
+    },100);
+    document.getElementById('pb1lbl').textContent=`${green} из ${total}`;
+    document.getElementById('pb2lbl').textContent=`${red} из ${total}`;
+    document.getElementById('pb3lbl').textContent=`${yellow} из ${total}`;
+
+    // Пирог — действующие
+    if(pieChartInst)pieChartInst.destroy();
+    pieChartInst=new Chart(document.getElementById('pieChart'),{
+      type:'doughnut',
+      data:{
+        labels:['Обучены','Просрочено','В сроках'],
+        datasets:[{data:[green,red,yellow],backgroundColor:['#3B6D11','#A32D2D','#854F0B'],borderWidth:2,borderColor:'#fff'}]
+      },
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:8}}}}
+    });
+
+    // Бар — всё время
+    if(barChartInst)barChartInst.destroy();
+    barChartInst=new Chart(document.getElementById('barChart'),{
+      type:'bar',
+      data:{
+        labels:['Всего','Обучены','Не обучены'],
+        datasets:[{data:[totalAll,trainedAll,totalAll-trainedAll],backgroundColor:['#185FA5','#3B6D11','#A32D2D'],borderRadius:4,borderSkipped:false}]
+      },
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#f0f0f0'}}}}
+    });
+
+    document.getElementById('statSection').classList.add('show');
 
   }catch(e){
-    addLog('Ошибка: '+e.message);
-    console.error(e);
+    addLog('Ошибка: '+e.message);console.error(e);
   }
-  btn.disabled=false;
-  btn.textContent='Сформировать свод ↓';
+  btn.disabled=false;btn.textContent='Сформировать свод ↓';
 }
 </script>
 </body>
