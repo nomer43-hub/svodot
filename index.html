@@ -115,7 +115,7 @@ async function run(){
   try{
     setProgress(5);addLog('Загружаю файлы...');
 
-    const readFile=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{const d=XLSX.read(e.target.result,{cellFormula:false});res(d.Sheets[d.SheetNames[0]]);}catch(e){rej(e);}};r.onerror=rej;r.readAsArrayBuffer(f);});
+    const readFile=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{const d=XLSX.read(e.target.result,{cellFormula:false,cellDates:false,raw:true});res(d.Sheets[d.SheetNames[0]]);}catch(e){rej(e);}};r.onerror=rej;r.readAsArrayBuffer(f);});
 
     const wb1=await readFile(FILES.b1);
     const wb2=await readFile(FILES.b2);
@@ -125,24 +125,49 @@ async function run(){
 
     setProgress(15);addLog('Парсю данные...');
 
+    const normCode=(c)=>String(c||'').trim().replace(/^0+/,'')||'0';
+
     const parseSheet=(ws,blockName)=>{
       const data={};
       if(!ws)return data;
+      // Ищем заголовок: строка где col B = "Код"
       let headerRow=-1;
-      for(let r=0;r<30;r++){
-        const cell=ws[XLSX.utils.encode_cell({r,c:0})];
-        if(cell&&cell.v==='Код'){headerRow=r;break;}
+      for(let r=0;r<10;r++){
+        const cell=ws[XLSX.utils.encode_cell({r,c:1})];
+        if(cell&&String(cell.v).trim()==='Код'){headerRow=r;break;}
+      }
+      // Если не нашли по col B, ищем по col A
+      if(headerRow<0){
+        for(let r=0;r<10;r++){
+          const cell=ws[XLSX.utils.encode_cell({r,c:0})];
+          if(cell&&String(cell.v).trim()==='Код'){headerRow=r;break;}
+        }
       }
       if(headerRow<0)return data;
-      
-      for(let r=headerRow+1;r<1000;r++){
-        const cCell=ws[XLSX.utils.encode_cell({r,c:0})];
-        const sCell=ws[XLSX.utils.encode_cell({r,c:1})];
+
+      // Определяем колонки Код и Статус
+      let codeCol=-1,statusCol=-1;
+      for(let c=0;c<20;c++){
+        const cell=ws[XLSX.utils.encode_cell({r:headerRow,c})];
+        if(!cell)continue;
+        const v=String(cell.v).trim();
+        if(v==='Код')codeCol=c;
+        if(v==='Статус')statusCol=c;
+      }
+      if(codeCol<0)return data;
+      if(statusCol<0)statusCol=codeCol+1; // fallback
+
+      for(let r=headerRow+1;r<10000;r++){
+        const cCell=ws[XLSX.utils.encode_cell({r,c:codeCol})];
+        const sCell=ws[XLSX.utils.encode_cell({r,c:statusCol})];
         if(!cCell)break;
-        const code=String(cCell.v||'').trim();
-        if(!code)continue;
+        const code=normCode(cCell.v);
+        if(!code||code==='0')continue;
         const status=String(sCell?.v||'').trim();
-        data[code]={status};
+        // Дедупликация: "Пройден" приоритетнее
+        if(!data[code]||status==='Пройден'){
+          data[code]={status};
+        }
       }
       return data;
     };
@@ -176,20 +201,32 @@ async function run(){
       if(h==='Дата приема')colMap.hireDate=+c;
       if(h==='Дата увольнения')colMap.fireDate=+c;
       if(h==='Сотрудник.Физическое лицо.Код')colMap.code=+c;
+      if(h.includes('Дата получения удостоверения')||h.includes('Дата получения удосто'))colMap.certDate=+c;
     });
 
     const parseDate=(dateStr)=>{
       if(!dateStr)return null;
       const s=String(dateStr).trim();
+      if(!s)return null;
+      // Формат ДД.ММ.ГГГГ
       const parts=s.split('.');
       if(parts.length===3){
         const d=parseInt(parts[0],10);
         const m=parseInt(parts[1],10)-1;
         const y=parseInt(parts[2],10);
-        if(!isNaN(d)&&!isNaN(m)&&!isNaN(y)){
+        if(!isNaN(d)&&!isNaN(m)&&!isNaN(y)&&y>1900){
           return new Date(y,m,d);
         }
       }
+      // Excel serial number
+      const num=Number(s);
+      if(!isNaN(num)&&num>1&&num<100000){
+        const epoch=new Date(1899,11,30);
+        return new Date(epoch.getTime()+num*86400000);
+      }
+      // ISO или другие форматы
+      const d=new Date(s);
+      if(!isNaN(d.getTime()))return d;
       return null;
     };
 
@@ -217,21 +254,23 @@ async function run(){
       const cCell=wbemp[XLSX.utils.encode_cell({r,c:colMap.code})];
       const hCell=wbemp[XLSX.utils.encode_cell({r,c:colMap.hireDate})];
       const fCell=wbemp[XLSX.utils.encode_cell({r,c:colMap.fireDate})];
+      const cdCell=colMap.certDate!=null?wbemp[XLSX.utils.encode_cell({r,c:colMap.certDate})]:null;
 
       if(!dCell)break;
       
       const dept=String(dCell.v||'').trim();
       const pos=String(pCell?.v||'').trim();
       const name=String(nCell?.v||'').trim();
-      const code=String(cCell?.v||'').trim();
+      const code=normCode(cCell?.v);
       const hireDate=parseDate(hCell?.v);
       const fireDate=parseDate(fCell?.v);
+      const certDate=parseDate(cdCell?.v);
 
       if(!name||!code)continue;
       if(ignoreSubsections.has(dept))continue;
       if(!isRuler(dept))continue;
 
-      const rowObj={dept,pos,name,code,hireDate,fireDate};
+      const rowObj={dept,pos,name,code,hireDate,fireDate,certDate};
 
       if(isHeadRole(pos)){
         headRows.push(rowObj);
@@ -277,13 +316,31 @@ async function run(){
         color='blue';
       }
 
+      // Срок удостоверения: 3 года от даты обучения
+      let certStatus='';
+      if(emp.certDate){
+        const expiry=new Date(emp.certDate);
+        expiry.setFullYear(expiry.getFullYear()+3);
+        const daysLeft=Math.floor((expiry-TODAY)/86400000);
+        if(daysLeft<0){
+          certStatus='🔴 Просрочен';
+        }else if(daysLeft<=30){
+          certStatus='🟡 Истекает';
+        }else{
+          certStatus='🟢 Обучен';
+        }
+      }
+
+      const sm={'пройдено':'🟢 пройдено','не пройдено':'🔴 не пройдено','просрочено':'🔴 просрочено','в сроках':'🟡 в сроках','руководитель':'🔵 руководитель'};
+
       return{
         РД:'',Подразделение:emp.dept,ФИО:emp.name,Код:emp.code,Должность:emp.pos,
-        'Дата приёма':emp.hireDate?new Date(emp.hireDate).toLocaleDateString('ru-RU'):'',
+        'Дата приёма':emp.hireDate?emp.hireDate.toLocaleDateString('ru-RU'):'',
         'Блок 1':b1,'Блок 2':b2,'Блок 3':b3,'Итоговый тест':it,
-        'Дата обучения':'','Подписи собраны':'',
-        'Статус обучения':status,
-        'Статус по срокам':status,
+        'Дата обучения':emp.certDate?emp.certDate.toLocaleDateString('ru-RU'):'','Подписи собраны':'',
+        'Срок удостоверения':certStatus,
+        'Статус обучения':sm[status]||status,
+        'Статус по срокам':sm[status]||status,
         _color:color,
         _active:isActive,
         _isHead:isHead
@@ -308,7 +365,7 @@ async function run(){
     setProgress(70);addLog(`Подготавливаю листы...`);
     setProgress(80);addLog('Генерирую Excel...');
 
-    const H=['РД','Подразделение','ФИО','Код','Должность','Дата приёма','Блок 1','Блок 2','Блок 3','Итоговый тест','Дата обучения','Подписи собраны','Статус обучения','Статус по срокам'];
+    const H=['РД','Подразделение','ФИО','Код','Должность','Дата приёма','Блок 1','Блок 2','Блок 3','Итоговый тест','Дата обучения','Подписи собраны','Срок удостоверения','Статус обучения','Статус по срокам'];
 
     const makeSheet=(rows)=>{
       const ws={};
@@ -323,9 +380,9 @@ async function run(){
           ws[cellRef]={v:String(row[h]??''),t:'s',s:{fill:{fgColor:{rgb:fillColor},patternType:'solid'}}};
         });
       });
-      ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:13}});
-      ws['!cols']=[{wch:8},{wch:36},{wch:30},{wch:12},{wch:28},{wch:13},{wch:10},{wch:10},{wch:10},{wch:14},{wch:15},{wch:15},{wch:15},{wch:15}];
-      ws['!autofilter']={ref:'A1:N1'};
+      ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:H.length-1}});
+      ws['!cols']=[{wch:8},{wch:36},{wch:30},{wch:12},{wch:28},{wch:13},{wch:10},{wch:10},{wch:10},{wch:14},{wch:15},{wch:15},{wch:18},{wch:18},{wch:18}];
+      ws['!autofilter']={ref:`A1:O1`};
       return ws;
     };
 
