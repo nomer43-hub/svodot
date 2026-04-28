@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Свод обучения — Охрана труда</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f6fa;min-height:100vh;padding:2rem 1rem}
+.container{max-width:720px;margin:0 auto}
+.header{text-align:center;margin-bottom:2rem}
+.header h1{font-size:22px;font-weight:600;color:#1a1a2e;margin-bottom:6px}
+.header p{font-size:14px;color:#666;line-height:1.5}
+.card{background:#fff;border-radius:12px;padding:1.5rem;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:1rem}
+.card-title{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.8px;margin-bottom:1rem}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.drop{border:1.5px dashed #d0d5dd;border-radius:8px;padding:14px;cursor:pointer;transition:all .15s;position:relative;background:#fafafa}
+.drop:hover{border-color:#185FA5;background:#f0f7ff}
+.drop.ok{border-color:#3B6D11;border-style:solid;background:#f0faf0}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dlabel{font-size:11px;color:#888;margin-bottom:4px;font-weight:500}
+.drop.ok .dlabel{color:#3B6D11}
+.dname{font-size:12px;font-weight:500;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dico{font-size:16px;margin-bottom:6px}
+.emp-drop{border:1.5px dashed #d0d5dd;border-radius:8px;padding:14px 16px;cursor:pointer;transition:all .15s;position:relative;background:#fafafa;display:flex;align-items:center;gap:12px;margin-top:10px}
+.emp-drop:hover{border-color:#185FA5;background:#f0f7ff}
+.emp-drop.ok{border-color:#3B6D11;border-style:solid;background:#f0faf0}
+.emp-drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.emp-drop.ok .dlabel{color:#3B6D11}
+.param-row{display:flex;align-items:center;gap:10px}
+.param-row label{font-size:13px;color:#555}
+.param-row input{width:70px;padding:6px 8px;border:1px solid #d0d5dd;border-radius:6px;font-size:14px;text-align:center}
+.btn{width:100%;padding:13px;border-radius:8px;border:none;font-size:15px;font-weight:600;cursor:pointer;transition:all .15s;margin-top:1rem}
+.btn-go{background:#185FA5;color:#fff}
+.btn-go:hover:not(:disabled){background:#0C447C}
+.btn-go:disabled{background:#aac4e0;cursor:not-allowed}
+.progress{height:4px;background:#e9ecef;border-radius:4px;margin-top:.75rem;overflow:hidden;display:none}
+.progress.show{display:block}
+.progress-bar{height:100%;background:#185FA5;width:0%;transition:width .3s;border-radius:4px}
+.log{background:#f8f9fa;border-radius:8px;padding:12px 14px;font-size:12px;color:#555;line-height:1.8;margin-top:1rem;display:none;border-left:3px solid #185FA5}
+.log.show{display:block}
+.privacy{font-size:11px;color:#999;text-align:center;margin-top:1.5rem;line-height:1.6}
+.privacy strong{color:#666}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Свод обучения — Охрана труда</h1>
+    <p>Загрузите файлы выгрузки и список сотрудников.<br>Excel формируется прямо в браузере — данные никуда не передаются.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Блоки обучения</div>
+    <div class="grid">
+      <div class="drop" id="d1"><input type="file" accept=".xlsx,.xls" onchange="setFile('b1',this,1)"><div class="dico">📘</div><div class="dlabel">Блок 1</div><div class="dname" id="n1">Выбрать файл</div></div>
+      <div class="drop" id="d2"><input type="file" accept=".xlsx,.xls" onchange="setFile('b2',this,2)"><div class="dico">📗</div><div class="dlabel">Блок 2</div><div class="dname" id="n2">Выбрать файл</div></div>
+      <div class="drop" id="d3"><input type="file" accept=".xlsx,.xls" onchange="setFile('b3',this,3)"><div class="dico">📙</div><div class="dlabel">Блок 3</div><div class="dname" id="n3">Выбрать файл</div></div>
+      <div class="drop" id="d4"><input type="file" accept=".xlsx,.xls" onchange="setFile('it',this,4)"><div class="dico">📋</div><div class="dlabel">Итоговый тест</div><div class="dname" id="n4">Выбрать файл</div></div>
+    </div>
+    <div class="emp-drop" id="d5"><input type="file" accept=".xlsx,.xls" onchange="setFile('emp',this,5)">
+      <span style="font-size:22px">👥</span>
+      <div><div class="dlabel">Список действующих сотрудников (.xls / .xlsx)</div><div class="dname" id="n5">Выбрать файл</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Параметры</div>
+    <div class="param-row">
+      <label>Срок обучения (дней):</label>
+      <input type="number" id="deadline" value="60" min="1" max="365">
+    </div>
+  </div>
+
+  <button class="btn btn-go" id="runBtn" onclick="run()" disabled>Сформировать свод ↓</button>
+  <div class="progress" id="prog"><div class="progress-bar" id="progbar"></div></div>
+  <div class="log" id="log"></div>
+
+  <div class="privacy">
+    <strong>🔒 Конфиденциальность:</strong> все файлы обрабатываются локально в вашем браузере. Данные сотрудников не передаются на серверы и не сохраняются.
+  </div>
+</div>
+
+<script>
+let FILES={b1:null,b2:null,b3:null,it:null,emp:null};
+
+function setFile(k,inp,i){
+  if(!inp.files||!inp.files[0])return;
+  FILES[k]=inp.files[0];
+  document.getElementById('n'+i).textContent=inp.files[0].name;
+  const d=document.getElementById('d'+i);
+  if(d)d.classList.add('ok');
+  checkBtn();
+}
+
+function checkBtn(){
+  const allSet=FILES.b1&&FILES.b2&&FILES.b3&&FILES.it&&FILES.emp;
+  document.getElementById('runBtn').disabled=!allSet;
+}
+
+const DAYS=60;
+const TODAY=new Date();
+
+function setProgress(p){document.getElementById('progbar').style.width=p+'%'}
+function addLog(msg){const l=document.getElementById('log');l.classList.add('show');l.innerHTML+=msg+'<br>'}
+
+async function run(){
+  const btn=document.getElementById('runBtn');
+  btn.disabled=true;btn.textContent='⏳ Обработка...';
+  document.getElementById('log').innerHTML='';
+  document.getElementById('log').classList.remove('show');
+  document.getElementById('progbar').style.width='0%';
+
+  try{
+    setProgress(5);addLog('Загружаю файлы...');
+
+    const readFile=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{const d=XLSX.read(e.target.result,{cellFormula:false});res(d.Sheets[d.SheetNames[0]]);}catch(e){rej(e);}};r.onerror=rej;r.readAsArrayBuffer(f);});
+
+    const wb1=await readFile(FILES.b1);
+    const wb2=await readFile(FILES.b2);
+    const wb3=await readFile(FILES.b3);
+    const wbit=await readFile(FILES.it);
+    const wbemp=await readFile(FILES.emp);
+
+    setProgress(15);addLog('Парсю данные...');
+
+    const parseSheet=(ws,blockName)=>{
+      const data={};
+      if(!ws)return data;
+      let headerRow=-1;
+      for(let r=0;r<30;r++){
+        const cell=ws[XLSX.utils.encode_cell({r,c:0})];
+        if(cell&&cell.v==='Код'){headerRow=r;break;}
+      }
+      if(headerRow<0)return data;
+      
+      for(let r=headerRow+1;r<1000;r++){
+        const cCell=ws[XLSX.utils.encode_cell({r,c:0})];
+        const sCell=ws[XLSX.utils.encode_cell({r,c:1})];
+        if(!cCell)break;
+        const code=String(cCell.v||'').trim();
+        if(!code)continue;
+        const status=String(sCell?.v||'').trim();
+        data[code]={status};
+      }
+      return data;
+    };
+
+    const b1Data=parseSheet(wb1,'Блок 1');
+    const b2Data=parseSheet(wb2,'Блок 2');
+    const b3Data=parseSheet(wb3,'Блок 3');
+    const itData=parseSheet(wbit,'Итоговый тест');
+
+    setProgress(30);addLog('Парсю штатку...');
+
+    const empData=[];
+    let headerRow=-1;
+    const headers={};
+    for(let r=0;r<30;r++){
+      const aCell=wbemp[XLSX.utils.encode_cell({r,c:0})];
+      if(aCell&&aCell.v==='Подразделение'){headerRow=r;break;}
+    }
+    if(headerRow<0)throw new Error('Не найдена штатка (заголовок "Подразделение")');
+
+    for(let c=0;c<30;c++){
+      const h=wbemp[XLSX.utils.encode_cell({r:headerRow,c})];
+      if(h)headers[c]=String(h.v||'').trim();
+    }
+
+    const colMap={};
+    Object.entries(headers).forEach(([c,h])=>{
+      if(h==='Подразделение')colMap.dept=+c;
+      if(h==='Должность')colMap.pos=+c;
+      if(h==='Сотрудник')colMap.name=+c;
+      if(h==='Дата приема')colMap.hireDate=+c;
+      if(h==='Дата увольнения')colMap.fireDate=+c;
+      if(h==='Сотрудник.Физическое лицо.Код')colMap.code=+c;
+    });
+
+    const parseDate=(dateStr)=>{
+      if(!dateStr)return null;
+      const s=String(dateStr).trim();
+      const parts=s.split('.');
+      if(parts.length===3){
+        const d=parseInt(parts[0],10);
+        const m=parseInt(parts[1],10)-1;
+        const y=parseInt(parts[2],10);
+        if(!isNaN(d)&&!isNaN(m)&&!isNaN(y)){
+          return new Date(y,m,d);
+        }
+      }
+      return null;
+    };
+
+    const isRuler=dept=>{
+      return dept==='Региональное управление по работе с универмагами'||dept.startsWith('Универмаг');
+    };
+
+    const isHeadRole=pos=>{
+      if(!pos)return false;
+      const p=String(pos).toLowerCase();
+      return p.includes('управляющий')||p.includes('региональный директор')||p.includes('заместитель регионального директора');
+    };
+
+    const ignoreSubsections=new Set([
+      'Отдел операторов','Административно-хозяйственный отдел','Отдел аренды',
+      'Отдел открытий и реноваций','Отдел развития','Отдел строительства и эксплуатации',
+      'Техническое управление','Управление развития и аренды'
+    ]);
+
+    const empRows=[],headRows=[];
+    for(let r=headerRow+1;r<5000;r++){
+      const dCell=wbemp[XLSX.utils.encode_cell({r,c:colMap.dept})];
+      const pCell=wbemp[XLSX.utils.encode_cell({r,c:colMap.pos})];
+      const nCell=wbemp[XLSX.utils.encode_cell({r,c:colMap.name})];
+      const cCell=wbemp[XLSX.utils.encode_cell({r,c:colMap.code})];
+      const hCell=wbemp[XLSX.utils.encode_cell({r,c:colMap.hireDate})];
+      const fCell=wbemp[XLSX.utils.encode_cell({r,c:colMap.fireDate})];
+
+      if(!dCell)break;
+      
+      const dept=String(dCell.v||'').trim();
+      const pos=String(pCell?.v||'').trim();
+      const name=String(nCell?.v||'').trim();
+      const code=String(cCell?.v||'').trim();
+      const hireDate=parseDate(hCell?.v);
+      const fireDate=parseDate(fCell?.v);
+
+      if(!name||!code)continue;
+      if(ignoreSubsections.has(dept))continue;
+      if(!isRuler(dept))continue;
+
+      const rowObj={dept,pos,name,code,hireDate,fireDate};
+
+      if(isHeadRole(pos)){
+        headRows.push(rowObj);
+      }else{
+        empRows.push(rowObj);
+      }
+    }
+
+    setProgress(50);addLog(`Обработано: ${empRows.length} обычных + ${headRows.length} руководителей`);
+
+    const makeDataRow=(emp,isActive,isHead)=>{
+      let b1='',b2='',b3='',it='';
+      let allPass=false;
+      let hasAny=false;
+      let daysFromStart=-1;
+      let status='не пройдено';
+      let color='red';
+
+      if(!isHead){
+        b1=b1Data[emp.code]?.status||'';
+        b2=b2Data[emp.code]?.status||'';
+        b3=b3Data[emp.code]?.status||'';
+        it=itData[emp.code]?.status||'';
+        allPass=b1==='Пройден'&&b2==='Пройден'&&b3==='Пройден'&&it==='Пройден';
+        hasAny=b1||b2||b3||it;
+        daysFromStart=emp.hireDate?Math.floor((TODAY-new Date(emp.hireDate))/86400000):-1;
+
+        if(allPass){
+          status='пройдено';
+          color='green';
+        }else if(!hasAny||daysFromStart<0){
+          status='не пройдено';
+          color='red';
+        }else if(daysFromStart>DAYS){
+          status='просрочено';
+          color='red';
+        }else{
+          status='в сроках';
+          color='yellow';
+        }
+      }else{
+        status='руководитель';
+        color='blue';
+      }
+
+      return{
+        РД:'',Подразделение:emp.dept,ФИО:emp.name,Код:emp.code,Должность:emp.pos,
+        'Дата приёма':emp.hireDate?new Date(emp.hireDate).toLocaleDateString('ru-RU'):'',
+        'Блок 1':b1,'Блок 2':b2,'Блок 3':b3,'Итоговый тест':it,
+        'Дата обучения':'','Подписи собраны':'',
+        'Статус обучения':status,
+        'Статус по срокам':status,
+        _color:color,
+        _active:isActive,
+        _isHead:isHead
+      };
+    };
+
+    const allRows=[];
+    const activeRows=[];
+
+    empRows.forEach(emp=>{
+      const row=makeDataRow(emp,!emp.fireDate,false);
+      allRows.push(row);
+      if(!emp.fireDate)activeRows.push(row);
+    });
+
+    headRows.forEach(emp=>{
+      const row=makeDataRow(emp,!emp.fireDate,true);
+      allRows.push(row);
+      if(!emp.fireDate)activeRows.push(row);
+    });
+
+    setProgress(70);addLog(`Подготавливаю листы...`);
+    setProgress(80);addLog('Генерирую Excel...');
+
+    const H=['РД','Подразделение','ФИО','Код','Должность','Дата приёма','Блок 1','Блок 2','Блок 3','Итоговый тест','Дата обучения','Подписи собраны','Статус обучения','Статус по срокам'];
+
+    const makeSheet=(rows)=>{
+      const ws={};
+      const colors={green:'C6EFCE',red:'FFC7CE',yellow:'FFEB9C',blue:'E7F0FF'};
+      
+      H.forEach((h,ci)=>{ws[XLSX.utils.encode_cell({r:0,c:ci})]={v:h,t:'s',s:{fill:{fgColor:{rgb:'2F5496'},patternType:'solid'},font:{bold:true,color:{rgb:'FFFFFF'}}}}});
+
+      rows.forEach((row,ri)=>{
+        const fillColor=colors[row._color]||'FFFFFF';
+        H.forEach((h,ci)=>{
+          const cellRef=XLSX.utils.encode_cell({r:ri+1,c:ci});
+          ws[cellRef]={v:String(row[h]??''),t:'s',s:{fill:{fgColor:{rgb:fillColor},patternType:'solid'}}};
+        });
+      });
+      ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:13}});
+      ws['!cols']=[{wch:8},{wch:36},{wch:30},{wch:12},{wch:28},{wch:13},{wch:10},{wch:10},{wch:10},{wch:14},{wch:15},{wch:15},{wch:15},{wch:15}];
+      ws['!autofilter']={ref:'A1:N1'};
+      return ws;
+    };
+
+    function makeStatSheet(){
+      const ws={};
+      const dt=TODAY.toLocaleDateString('ru-RU');
+      
+      const labels=['ДЕЙСТВУЮЩИЕ СОТРУДНИКИ',dt,'','','ЗА ВСЁ ВРЕМЯ'];
+      const rows=[
+        ['Категория','Сотрудников','Доля','Прогресс'],
+        ['Всего действующих','','',''],
+        ['Обучены','','',''],
+        ['Просрочено','','',''],
+        ['В сроках','','',''],
+        ['','','',''],
+        ['Категория','Сотрудников','Доля','Прогресс'],
+        ['Всего','','',''],
+        ['Обучены','','',''],
+        ['Не обучены','','','']
+      ];
+
+      rows.forEach((row,ri)=>{
+        row.forEach((val,ci)=>{
+          ws[XLSX.utils.encode_cell({r:ri,c:ci})]={v:val,t:'s'};
+        });
+      });
+
+      ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:3}});
+      ws['!cols']=[{wch:42},{wch:16},{wch:10},{wch:24}];
+      return ws;
+    }
+
+    setProgress(88);addLog('Формирую Excel...');
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,makeSheet(allRows),'С уволенными');
+    XLSX.utils.book_append_sheet(wb,makeSheet(activeRows),'Без уволенных');
+    
+    const rulerRows=headRows.map(emp=>{
+      const row=makeDataRow(emp,!emp.fireDate,true);
+      return row;
+    });
+    XLSX.utils.book_append_sheet(wb,makeSheet(rulerRows),'Руководители');
+    
+    XLSX.utils.book_append_sheet(wb,makeStatSheet(),'Статистика');
+
+    const dd=String(TODAY.getDate()).padStart(2,'0');
+    const mm=String(TODAY.getMonth()+1).padStart(2,'0');
+    const fname=`Свод_ОТ_${dd}_${mm}_${TODAY.getFullYear()}.xlsx`;
+    XLSX.writeFile(wb,fname);
+    setProgress(100);addLog('✓ Скачан: '+fname);
+
+  }catch(e){
+    addLog('Ошибка: '+e.message);console.error(e);
+  }
+  btn.disabled=false;btn.textContent='Сформировать свод ↓';
+}
+</script>
+</body>
+</html>
