@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Свод обучения — Охрана труда</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -72,7 +72,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div class="container">
   <div class="header">
     <h1>Свод обучения — Охрана труда</h1>
-    <p>Загрузите файлы выгрузки и список сотрудников.<br>Excel формируется прямо в браузере — данные никуда не передаются.</p>
+    <p>Загрузите 4 выгрузки из системы обучения и список сотрудников из 1С.<br>Excel формируется прямо в браузере — данные никуда не передаются.</p>
   </div>
   <div class="card">
     <div class="card-title">Блоки обучения</div>
@@ -118,192 +118,261 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="privacy"><strong>🔒 Конфиденциальность:</strong> все файлы обрабатываются локально в вашем браузере. Данные сотрудников не передаются на серверы.</div>
 </div>
 <script>
+const SVOD=(function(){
+const norm=s=>String(s??'').trim().toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ');
+const normCode=c=>String(c??'').trim().replace(/\.0+$/,'').replace(/^0+/,'')||'0';
+const enc=(r,c)=>XLSX.utils.encode_cell({r,c});
+const val=(ws,r,c)=>{if(c==null||c<0)return undefined;const x=ws[enc(r,c)];return x?x.v:undefined;};
+const isPass=s=>/^пройден(о)?$/i.test(String(s??'').trim());
+const rng=ws=>ws&&ws['!ref']?XLSX.utils.decode_range(ws['!ref']):{s:{r:0,c:0},e:{r:-1,c:-1}};
+
+function mkDate(y,m,d){if(y<1950||y>2100||m<1||m>12||d<1||d>31)return null;const dt=new Date(y,m-1,d);return(dt.getMonth()===m-1&&dt.getDate()===d)?dt:null;}
+function parseDate(v){
+  if(v==null||v==='')return null;
+  if(v instanceof Date)return isNaN(v)?null:new Date(v.getFullYear(),v.getMonth(),v.getDate());
+  if(typeof v==='number'){if(!(v>1&&v<100000))return null;const d=new Date(1899,11,30);d.setDate(d.getDate()+Math.floor(v));return d.getFullYear()>=1950?d:null;}
+  const s=String(v).trim();let m;
+  if((m=s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4}|\d{2})(?=\s|$)/))){let y=+m[3];if(m[3].length===2)y+=(y<=50?2000:1900);return mkDate(y,+m[2],+m[1]);}
+  if((m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)))return mkDate(+m[1],+m[2],+m[3]);
+  if(/^\d+(\.\d+)?$/.test(s))return parseDate(parseFloat(s));
+  return null;
+}
+const serial=d=>(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-Date.UTC(1899,11,30))/864e5;
+const ruDate=d=>d?String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear():'';
+
+// ---------- блоки обучения ----------
+function parseBlock(ws,label){
+  const R=rng(ws);let hr=-1,codeCol=-1,statusCol=-1;
+  for(let r=R.s.r;r<=Math.min(R.e.r,R.s.r+15)&&hr<0;r++)
+    for(let c=R.s.c;c<=R.e.c;c++)if(norm(val(ws,r,c))==='код'){hr=r;break;}
+  if(hr<0)throw new Error(label+': не найдена колонка «Код» в первых 15 строках');
+  const mc={};
+  for(let c=R.s.c;c<=R.e.c;c++){const h=norm(val(ws,hr,c));if(h==='код')codeCol=c;if((h==='состояние'||h==='статус')&&statusCol<0)statusCol=c;
+    if(h==='пользователь')mc.name=c;if(h==='рд')mc.rd=c;if(h==='подразделение')mc.dept=c;if(h==='должность')mc.pos=c;if(h==='статус сотрудника')mc.es=c;}
+  if(statusCol<0)throw new Error(label+': не найдена колонка «Состояние» / «Статус»');
+  const data={},meta={};let rows=0;
+  for(let r=hr+1;r<=R.e.r;r++){
+    const raw=val(ws,r,codeCol);if(raw==null||raw==='')continue;
+    const code=normCode(raw);if(code==='0')continue;rows++;
+    const status=String(val(ws,r,statusCol)??'').trim();
+    if(!data[code]||(isPass(status)&&!isPass(data[code].status)))data[code]={status};
+    if(!meta[code]){const g=k=>mc[k]!=null?String(val(ws,r,mc[k])??'').trim():'';meta[code]={name:g('name'),rd:g('rd'),dept:g('dept'),pos:g('pos'),es:g('es')};}
+  }
+  return{data,meta,rows};
+}
+
+// ---------- выгрузка 1С ----------
+function parseEmp(ws,log){
+  const R=rng(ws);let hr=-1;
+  for(let r=R.s.r;r<=Math.min(R.e.r,R.s.r+40)&&hr<0;r++)
+    for(let c=R.s.c;c<=R.e.c;c++)if(norm(val(ws,r,c)).includes('физическое лицо')){hr=r;break;}
+  if(hr<0)for(let r=R.s.r;r<=Math.min(R.e.r,R.s.r+40)&&hr<0;r++)
+    for(let c=R.s.c;c<=R.e.c;c++)if(norm(val(ws,r,c))==='подразделение'){hr=r;break;}
+  if(hr<0)throw new Error('1С: не найдена строка заголовка (ищу «Физическое лицо» / «Подразделение» в первых 40 строках)');
+  const H={},cm={};
+  for(let c=R.s.c;c<=R.e.c;c++){
+    const raw=val(ws,hr,c);if(raw==null)continue;H[c]=String(raw).trim();const h=norm(raw);
+    if(h==='подразделение'&&cm.dept==null)cm.dept=c;
+    if(h==='должность'&&cm.pos==null)cm.pos=c;
+    if(h==='сотрудник'&&cm.name==null)cm.name=c;
+    if(h.startsWith('дата приема')&&cm.hire==null)cm.hire=c;
+    if(h.startsWith('дата увольнения')&&cm.fire==null)cm.fire=c;
+    if(h.includes('физическое лицо')&&h.endsWith('код')&&cm.code==null)cm.code=c;
+    if(h.includes('дата получения удостовер')&&cm.cert==null)cm.cert=c;
+    if(h.includes('вышестоящее подразделение')&&cm.rd==null)cm.rd=c;
+  }
+  if(cm.hire==null&&H[16]!=null){cm.hire=16;log.push('⚠ Колонка «Дата приема» не найдена по названию — беру колонку 17 («'+H[16]+'»)');}
+  const need={dept:'Подразделение',pos:'Должность',name:'Сотрудник',code:'Сотрудник.Физическое лицо.Код',hire:'Дата приема'};
+  const miss=Object.keys(need).filter(k=>cm[k]==null).map(k=>'«'+need[k]+'»');
+  if(miss.length)throw new Error('1С: нет колонок '+miss.join(', ')+'. Найдены: '+Object.values(H).join(' | '));
+  if(cm.fire==null)log.push('⚠ Колонка «Дата увольнения» не найдена — все считаются действующими');
+  if(cm.cert==null)log.push('⚠ Колонка «Дата получения удостоверения» не найдена — «Дата обучения» будет пустой');
+  if(cm.rd==null)log.push('⚠ Колонка «Вышестоящее подразделение» не найдена — РД будет пустым');
+
+  const isRuler=d=>d==='Региональное управление по работе с универмагами'||d.startsWith('Универмаг');
+  const isHead=p=>{const l=norm(p);return l.includes('управляющий')||l.includes('региональный директор')||l.includes('заместитель регионального директора');};
+  const ign=new Set(['Отдел операторов','Административно-хозяйственный отдел','Отдел аренды','Отдел открытий и реноваций','Отдел развития','Отдел строительства и эксплуатации','Техническое управление','Управление развития и аренды']);
+  const empR=[],headR=[],allCodes=new Set();let read=0,noCode=0,filtered=0,badHire=0;
+  for(let r=hr+1;r<=R.e.r;r++){
+    const name=String(val(ws,r,cm.name)??'').trim();
+    const dept=String(val(ws,r,cm.dept)??'').trim();
+    if(!name&&!dept)continue;
+    read++;
+    const code=normCode(val(ws,r,cm.code));
+    if(!name||code==='0'){noCode++;continue;}
+    allCodes.add(code);
+    if(ign.has(dept)||!isRuler(dept)){filtered++;continue;}
+    const hireRaw=val(ws,r,cm.hire);const hire=parseDate(hireRaw);
+    if(hireRaw!=null&&hireRaw!==''&&!hire)badHire++;
+    const row={dept,name,code,hire,
+      pos:String(val(ws,r,cm.pos)??'').trim(),
+      fire:cm.fire!=null?parseDate(val(ws,r,cm.fire)):null,
+      cert:cm.cert!=null?parseDate(val(ws,r,cm.cert)):null,
+      rd:cm.rd!=null?String(val(ws,r,cm.rd)??'').trim():''};
+    (isHead(row.pos)?headR:empR).push(row);
+  }
+  log.push('1С: прочитано строк '+read+', без ФИО/Кода '+noCode+', отсеяно фильтром подразделений '+filtered);
+  if(badHire)log.push('⚠ Нераспознанная дата приёма у '+badHire+' чел. — статус «нет данных»');
+  return{empR,headR,allCodes};
+}
+
+// ---------- стили ----------
+const F=rgb=>({patternType:'solid',fgColor:{rgb:'FF'+rgb}});
+const ST={
+  hdr:{fill:F('2F5496'),font:{bold:true,sz:10,color:{rgb:'FFFFFFFF'}},alignment:{horizontal:'center',vertical:'center',wrapText:true}},
+  n:{font:{sz:10},alignment:{vertical:'center'}},
+  green:{fill:F('C6EFCE'),font:{bold:true,sz:10,color:{rgb:'FF006100'}},alignment:{vertical:'center'}},
+  red:{fill:F('FFC7CE'),font:{bold:true,sz:10,color:{rgb:'FF9C0006'}},alignment:{vertical:'center'}},
+  yellow:{fill:F('FFEB9C'),font:{bold:true,sz:10,color:{rgb:'FF9C6500'}},alignment:{vertical:'center'}},
+  blue:{fill:F('D6E4F0'),font:{bold:true,sz:10,color:{rgb:'FF1F4E79'}},alignment:{vertical:'center'}},
+  b:{font:{sz:11,bold:true},alignment:{vertical:'center'}},
+  sect:{fill:F('2F5496'),font:{bold:true,sz:11,color:{rgb:'FFFFFFFF'}},alignment:{horizontal:'left',vertical:'center'}}
+};
+const certColor={обучен:'green',просрочено:'red',истекает:'yellow'};
+const sCell=(v,s)=>({v:String(v??''),t:'s',s});
+const cp=s=>JSON.parse(JSON.stringify(s));
+const dCell=(d,s)=>d?{v:serial(d),t:'n',z:'dd.mm.yyyy',s:cp(s)}:{v:'',t:'s',s};
+const nCell=(v,s,z)=>{const c={v,t:'n',s:cp(s)};c.z=z||'0';return c;};
+const codeCell=(code,s)=>/^\d{1,15}$/.test(code)?{v:+code,t:'n',z:'0',s:cp(s)}:sCell(code,s);
+
+// ---------- сборка ----------
+function build(sheets,opt){
+  const DAYS=opt.days||60,TODAY=opt.today||new Date();const log=[];
+  const blocks={},meta={};
+  [['b1','Блок 1'],['b2','Блок 2'],['b3','Блок 3'],['it','Итоговый тест']].forEach(([k,l])=>{const p=parseBlock(sheets[k],l);blocks[k]=p.data;for(const c in p.meta)if(!meta[c])meta[c]=p.meta[c];log.push(l+': '+p.rows+' строк, '+Object.keys(p.data).length+' уникальных кодов');});
+  const{empR,headR,allCodes}=parseEmp(sheets.emp,log);
+  if(!empR.length&&!headR.length)throw new Error('После фильтра не осталось ни одного сотрудника — проверь колонку «Подразделение» в 1С');
+  log.push('Сотрудников: '+empR.length+', руководителей: '+headR.length);
+
+  const mkRow=(e,ih)=>{
+    let b1='',b2='',b3='',it='',ts,tc,ds,dc;
+    if(!ih){
+      b1=blocks.b1[e.code]?.status||'';b2=blocks.b2[e.code]?.status||'';b3=blocks.b3[e.code]?.status||'';it=blocks.it[e.code]?.status||'';
+      const ap=isPass(b1)&&isPass(b2)&&isPass(b3)&&isPass(it);
+      ts=ap?'пройдено':'не пройдено';tc=ap?'green':'red';
+      const dh=e.hire?Math.floor((TODAY-e.hire)/864e5):-1;
+      if(ap){ds='обучен';dc='green';}else if(dh<0){ds='нет данных';dc='red';}else if(dh>DAYS){ds='просрочено';dc='red';}else{ds='в сроках';dc='yellow';}
+    }else{ts=ds='руководитель';tc=dc='blue';}
+    let cs='';
+    if(e.cert){const ex=new Date(e.cert);ex.setFullYear(ex.getFullYear()+3);const dl=Math.floor((ex-TODAY)/864e5);cs=dl<0?'просрочено':dl<=30?'истекает':'обучен';}
+    return{e,ih,b1,b2,b3,it,ts,tc,ds,dc,cs};
+  };
+  const all=[],act=[];
+  empR.forEach(e=>{const r=mkRow(e,false);all.push(r);if(!e.fire)act.push(r);});
+  headR.forEach(e=>{const r=mkRow(e,true);all.push(r);if(!e.fire)act.push(r);});
+  const S={green:0,red:0,yellow:0,total:0,trainedAll:0,totalAll:0,noData:0};
+  act.forEach(r=>{if(r.ih)return;S.total++;S[r.dc]++;if(r.ds==='нет данных')S.noData++;});
+  all.forEach(r=>{if(r.ih)return;S.totalAll++;if(r.ts==='пройдено')S.trainedAll++;});
+
+  // нет в 1С (только РД-X) → «Обучен уволен»
+  const gone=[];let otherDir=0;
+  Object.keys(meta).forEach(code=>{if(allCodes.has(code))return;const m=meta[code];
+    if(!/^РД-\d+$/.test(m.rd)){otherDir++;return;}
+    const st=k=>blocks[k][code]?.status||'';const r={code,m,b1:st('b1'),b2:st('b2'),b3:st('b3'),it:st('it')};
+    r.ap=isPass(r.b1)&&isPass(r.b2)&&isPass(r.b3)&&isPass(r.it);gone.push(r);});
+  gone.sort((a,b)=>a.m.rd.localeCompare(b.m.rd,'ru',{numeric:true})||a.m.dept.localeCompare(b.m.dept,'ru')||a.m.name.localeCompare(b.m.name,'ru'));
+  S.goneAll=gone.length;S.goneTrained=gone.filter(r=>r.ap).length;
+  log.push('Нет в 1С (РД-1…РД-9) → «Обучен уволен»: '+gone.length+' чел., из них прошли все 4 блока: '+S.goneTrained);
+  log.push('Нет в 1С, другие дирекции (склад и пр.) — не включены: '+otherDir);
+
+  const H=['РД','Подразделение','ФИО','Код','Должность','Дата приёма','Блок 1','Блок 2','Блок 3','Итоговый тест','Статус обучения','Статус по срокам','Дата обучения','Подписи собраны','Срок удостоверения'];
+  const W=[8,36,30,12,28,13,10,10,10,14,18,18,15,15,18];
+  const mkSheet=rows=>{
+    const ws={};H.forEach((h,c)=>ws[enc(0,c)]=sCell(h,ST.hdr));
+    rows.forEach((r,i)=>{const e=r.e,R=i+1;
+      const cells=[sCell(e.rd,ST.n),sCell(e.dept,ST.n),sCell(e.name,ST.n),codeCell(e.code,ST.n),sCell(e.pos,ST.n),dCell(e.hire,ST.n),
+        sCell(r.b1,ST.n),sCell(r.b2,ST.n),sCell(r.b3,ST.n),sCell(r.it,ST.n),sCell(r.ts,ST[r.tc]),sCell(r.ds,ST[r.dc]),
+        dCell(e.cert,ST.n),sCell('',ST.n),sCell(r.cs,r.cs?ST[certColor[r.cs]]:ST.n)];
+      cells.forEach((x,c)=>ws[enc(R,c)]=x);});
+    ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:H.length-1}});
+    ws['!cols']=W.map(w=>({wch:w}));ws['!autofilter']={ref:'A1:O'+(rows.length+1)};return ws;
+  };
+  const HH=['ФИО','Должность','Дата приёма','Статус','Дата обучения','Подписи собраны','Срок удостоверения'];
+  const mkHead=rows=>{
+    const ws={};HH.forEach((h,c)=>ws[enc(0,c)]=sCell(h,ST.hdr));
+    rows.forEach((r,i)=>{const e=r.e;[sCell(e.name,ST.n),sCell(e.pos,ST.n),dCell(e.hire,ST.n),sCell('руководитель',ST.blue),dCell(e.cert,ST.n),sCell('',ST.n),sCell(r.cs,r.cs?ST[certColor[r.cs]]:ST.n)].forEach((x,c)=>ws[enc(i+1,c)]=x);});
+    ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:HH.length-1}});
+    ws['!cols']=[30,28,13,14,15,15,18].map(w=>({wch:w}));ws['!autofilter']={ref:'A1:G'+(rows.length+1)};return ws;
+  };
+  const HG=['РД','Подразделение','ФИО','Код','Должность','Статус сотрудника (из блоков)','Блок 1','Блок 2','Блок 3','Итоговый тест','Статус обучения'];
+  const mkGone=rows=>{
+    const ws={};HG.forEach((h,c)=>ws[enc(0,c)]=sCell(h,ST.hdr));
+    rows.forEach((r,i)=>{const m=r.m;[sCell(m.rd,ST.n),sCell(m.dept,ST.n),sCell(m.name,ST.n),codeCell(r.code,ST.n),sCell(m.pos,ST.n),sCell(m.es,m.es?ST.yellow:ST.n),
+      sCell(r.b1,ST.n),sCell(r.b2,ST.n),sCell(r.b3,ST.n),sCell(r.it,ST.n),sCell(r.ap?'пройдено':'не пройдено',r.ap?ST.green:ST.red)].forEach((x,c)=>ws[enc(i+1,c)]=x);});
+    ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:HG.length-1}});
+    ws['!cols']=[8,36,30,12,28,26,10,10,10,14,16].map(w=>({wch:w}));ws['!autofilter']={ref:'A1:K'+(rows.length+1)};return ws;
+  };
+  const pct=(a,b)=>b?a/b:0;
+  const mkStat=()=>{
+    const ws={},put=(r,c,x)=>ws[enc(r,c)]=x,P='0.0%';
+    put(0,0,sCell('ДЕЙСТВУЮЩИЕ — '+ruDate(TODAY),ST.sect));put(0,1,sCell('',ST.sect));put(0,2,sCell('',ST.sect));
+    put(1,0,sCell('Категория',ST.b));put(1,1,sCell('Кол-во',ST.b));put(1,2,sCell('Доля',ST.b));
+    put(2,0,sCell('Всего',ST.n));put(2,1,nCell(S.total,ST.n));put(2,2,nCell(S.total?1:0,ST.n,P));
+    [['Обучены','green'],['Просрочено','red'],['В сроках','yellow']].forEach(([l,k],i)=>{put(3+i,0,sCell(l,ST.n));put(3+i,1,nCell(S[k],ST[k]));put(3+i,2,nCell(pct(S[k],S.total),ST[k],P));});
+    put(6,0,sCell('в т.ч. «нет данных» (нет даты приёма) — внутри «Просрочено»',ST.n));put(6,1,nCell(S.noData,ST.n));
+    put(8,0,sCell('ЗА ВСЁ ВРЕМЯ',ST.sect));put(8,1,sCell('',ST.sect));put(8,2,sCell('',ST.sect));
+    put(9,0,sCell('Категория',ST.b));put(9,1,sCell('Кол-во',ST.b));put(9,2,sCell('Доля',ST.b));
+    put(10,0,sCell('Всего',ST.n));put(10,1,nCell(S.totalAll,ST.n));put(10,2,nCell(S.totalAll?1:0,ST.n,P));
+    put(11,0,sCell('Обучены',ST.n));put(11,1,nCell(S.trainedAll,ST.green));put(11,2,nCell(pct(S.trainedAll,S.totalAll),ST.green,P));
+    put(12,0,sCell('Не обучены',ST.n));put(12,1,nCell(S.totalAll-S.trainedAll,ST.red));put(12,2,nCell(pct(S.totalAll-S.trainedAll,S.totalAll),ST.red,P));
+    put(14,0,sCell('ОБУЧЕН УВОЛЕН (нет в 1С)',ST.sect));put(14,1,sCell('',ST.sect));put(14,2,sCell('',ST.sect));
+    put(15,0,sCell('Всего',ST.n));put(15,1,nCell(S.goneAll,ST.n));put(15,2,nCell(S.goneAll?1:0,ST.n,P));
+    put(16,0,sCell('Прошли все 4 блока',ST.n));put(16,1,nCell(S.goneTrained,ST.green));put(16,2,nCell(pct(S.goneTrained,S.goneAll),ST.green,P));
+    put(17,0,sCell('Не завершили',ST.n));put(17,1,nCell(S.goneAll-S.goneTrained,ST.red));put(17,2,nCell(pct(S.goneAll-S.goneTrained,S.goneAll),ST.red,P));
+    ws['!ref']='A1:C18';ws['!cols']=[{wch:34},{wch:12},{wch:10}];
+    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:2}},{s:{r:8,c:0},e:{r:8,c:2}},{s:{r:14,c:0},e:{r:14,c:2}}];return ws;
+  };
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,mkSheet(all),'С уволенными');
+  XLSX.utils.book_append_sheet(wb,mkSheet(act),'Без уволенных');
+  XLSX.utils.book_append_sheet(wb,mkHead(act.filter(r=>r.ih)),'Руководители');
+  XLSX.utils.book_append_sheet(wb,mkGone(gone),'Обучен уволен');
+  XLSX.utils.book_append_sheet(wb,mkStat(),'Статистика');
+  const fname='Свод_ОТ_'+ruDate(TODAY).replace(/\./g,'_')+'.xlsx';
+  return{wb,fname,stats:S,log};
+}
+return{build,parseDate,normCode,isPass};
+})();
+if(typeof module!=='undefined')module.exports=SVOD;
+
+</script>
+<script>
 let FILES={b1:null,b2:null,b3:null,it:null,emp:null};
 let pieChartInst=null,barChartInst=null;
 function setFile(k,inp,i){if(!inp.files||!inp.files[0])return;FILES[k]=inp.files[0];document.getElementById('n'+i).textContent=inp.files[0].name;const d=document.getElementById('d'+i);if(d)d.classList.add('ok');checkBtn();}
 function checkBtn(){document.getElementById('runBtn').disabled=!(FILES.b1&&FILES.b2&&FILES.b3&&FILES.it&&FILES.emp)}
-const TODAY=new Date();
-let green=0,red=0,yellow=0,total=0,trainedAll=0,totalAll=0;
 function setProgress(p){document.getElementById('progbar').style.width=p+'%';document.getElementById('prog').classList.add('show')}
-function addLog(msg){const l=document.getElementById('log');l.classList.add('show');l.innerHTML+=msg+'<br>'}
-const normCode=c=>String(c||'').trim().replace(/^0+/,'')||'0';
-function parseDate(v){if(!v)return null;const s=String(v).trim();if(!s)return null;const p=s.split('.');if(p.length===3){const d=+p[0],m=+p[1],y=parseInt(p[2]);if(y>1900)return new Date(y,m-1,d);}const n=parseFloat(s);if(!isNaN(n)&&n>1&&n<100000){const d=new Date(1899,11,30);d.setDate(d.getDate()+Math.floor(n));return d;}return null;}
-function parseSheet(ws){const data={};if(!ws)return data;let hr=-1;for(let r=0;r<10;r++){for(let c=0;c<20;c++){const cell=ws[XLSX.utils.encode_cell({r,c})];if(cell&&String(cell.v).trim()==='Код'){hr=r;break;}}if(hr>=0)break;}if(hr<0)return data;let codeCol=-1,statusCol=-1;for(let c=0;c<20;c++){const cell=ws[XLSX.utils.encode_cell({r:hr,c})];if(!cell)continue;const v=String(cell.v).trim();if(v==='Код')codeCol=c;if(v==='Статус')statusCol=c;}if(codeCol<0)return data;if(statusCol<0)statusCol=codeCol+1;let gaps=0;for(let r=hr+1;r<20000;r++){const cc=ws[XLSX.utils.encode_cell({r,c:codeCol})];if(!cc||cc.v==null||cc.v===''){gaps++;if(gaps>50)break;continue;}gaps=0;const code=normCode(cc.v);if(!code||code==='0')continue;const sc=ws[XLSX.utils.encode_cell({r,c:statusCol})];const status=String(sc?.v||'').trim();if(!data[code]||status==='Пройден')data[code]={status};}return data;}
+function addLog(msg){const l=document.getElementById('log');l.classList.add('show');const d=document.createElement('div');d.textContent=msg;l.appendChild(d);}
+const readFile=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{const d=XLSX.read(e.target.result,{cellFormula:false,cellDates:false,raw:true});res(d.Sheets[d.SheetNames[0]]);}catch(err){rej(new Error(f.name+': '+err.message));}};r.onerror=()=>rej(new Error('Не удалось прочитать '+f.name));r.readAsArrayBuffer(f);});
 
 async function run(){
   const DAYS=+document.getElementById('deadline').value||60;
+  const TODAY=new Date();
   const btn=document.getElementById('runBtn');btn.disabled=true;btn.textContent='⏳ Обработка...';
-  document.getElementById('log').innerHTML='';document.getElementById('log').classList.remove('show');
-  green=0;red=0;yellow=0;total=0;trainedAll=0;totalAll=0;
+  const L=document.getElementById('log');L.innerHTML='';L.classList.remove('show');
+  document.getElementById('statSection').classList.remove('show');
   try{
-    setProgress(5);addLog('Загружаю файлы...');
-    const readFile=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{const d=XLSX.read(e.target.result,{cellFormula:false,cellDates:false,raw:true});res(d.Sheets[d.SheetNames[0]]);}catch(e){rej(e);}};r.onerror=rej;r.readAsArrayBuffer(f);});
-    const[wb1,wb2,wb3,wbit,wbemp]=await Promise.all([readFile(FILES.b1),readFile(FILES.b2),readFile(FILES.b3),readFile(FILES.it),readFile(FILES.emp)]);
-    setProgress(15);addLog('Парсю блоки...');
-    const b1D=parseSheet(wb1),b2D=parseSheet(wb2),b3D=parseSheet(wb3),itD=parseSheet(wbit);
-    addLog('Блок1:'+Object.keys(b1D).length+' Блок2:'+Object.keys(b2D).length+' Блок3:'+Object.keys(b3D).length+' Итог:'+Object.keys(itD).length);
-    setProgress(30);addLog('Парсю штатку...');
-    let headerRow=-1;const headers={};
-    for(let r=0;r<30;r++){const c=wbemp[XLSX.utils.encode_cell({r,c:0})];if(c&&String(c.v).trim()==='Подразделение'){headerRow=r;break;}}
-    if(headerRow<0)throw new Error('Не найден заголовок "Подразделение"');
-    for(let c=0;c<30;c++){const h=wbemp[XLSX.utils.encode_cell({r:headerRow,c})];if(h)headers[c]=String(h.v||'').trim();}
-    const cm={};
-    Object.entries(headers).forEach(([c,h])=>{
-      if(h==='Подразделение')cm.dept=+c;if(h==='Должность')cm.pos=+c;if(h==='Сотрудник')cm.name=+c;
-      if(h==='Дата приема')cm.hire=+c;if(h==='Дата увольнения')cm.fire=+c;
-      if(h==='Сотрудник.Физическое лицо.Код')cm.code=+c;
-      if(h.includes('Дата получения удостоверения')||h.includes('Дата получения удосто'))cm.cert=+c;
-      if(h.includes('Вышестоящее подразделение'))cm.rd=+c;
-    });
-    const isRuler=d=>d==='Региональное управление по работе с универмагами'||d.startsWith('Универмаг');
-    const isHead=p=>{if(!p)return false;const l=p.toLowerCase();return l.includes('управляющий')||l.includes('региональный директор')||l.includes('заместитель регионального директора');};
-    const ign=new Set(['Отдел операторов','Административно-хозяйственный отдел','Отдел аренды','Отдел открытий и реноваций','Отдел развития','Отдел строительства и эксплуатации','Техническое управление','Управление развития и аренды']);
-    const empR=[],headR=[];
-    for(let r=headerRow+1;r<20000;r++){
-      const dC=wbemp[XLSX.utils.encode_cell({r,c:cm.dept})];if(!dC)break;
-      const dept=String(dC.v||'').trim();
-      const pos=String((wbemp[XLSX.utils.encode_cell({r,c:cm.pos})]?.v)||'').trim();
-      const name=String((wbemp[XLSX.utils.encode_cell({r,c:cm.name})]?.v)||'').trim();
-      const code=normCode(wbemp[XLSX.utils.encode_cell({r,c:cm.code})]?.v);
-      const hire=parseDate(wbemp[XLSX.utils.encode_cell({r,c:cm.hire})]?.v);
-      const fire=parseDate(wbemp[XLSX.utils.encode_cell({r,c:cm.fire})]?.v);
-      const cert=cm.cert!=null?parseDate(wbemp[XLSX.utils.encode_cell({r,c:cm.cert})]?.v):null;
-      const rd=cm.rd!=null?String(wbemp[XLSX.utils.encode_cell({r,c:cm.rd})]?.v||'').trim():'';
-      if(!name||code==='0')continue;if(ign.has(dept))continue;if(!isRuler(dept))continue;
-      const row={dept,pos,name,code,hire,fire,cert,rd};
-      if(isHead(pos))headR.push(row);else empR.push(row);
-    }
-    addLog(empR.length+' сотрудников + '+headR.length+' руководителей');
-    setProgress(50);
-
-    const mkRow=(emp,ih)=>{
-      let b1='',b2='',b3='',it='',trainStatus='не пройдено',trainColor='red',deadlineStatus='',deadlineColor='';
-      if(!ih){
-        b1=b1D[emp.code]?.status||'';b2=b2D[emp.code]?.status||'';b3=b3D[emp.code]?.status||'';it=itD[emp.code]?.status||'';
-        const ap=b1==='Пройден'&&b2==='Пройден'&&b3==='Пройден'&&it==='Пройден';
-        // Статус обучения — сдал все блоки или нет
-        if(ap){trainStatus='пройдено';trainColor='green';}
-        else{trainStatus='не пройдено';trainColor='red';}
-        // Статус по срокам — 60 дней от даты приёма
-        const dh=emp.hire?Math.floor((TODAY-emp.hire)/864e5):-1;
-        if(ap){deadlineStatus='обучен';deadlineColor='green';}
-        else if(dh<0){deadlineStatus='нет данных';deadlineColor='red';}
-        else if(dh>DAYS){deadlineStatus='просрочено';deadlineColor='red';}
-        else{deadlineStatus='в сроках';deadlineColor='yellow';}
-      }else{trainStatus='руководитель';trainColor='blue';deadlineStatus='руководитель';deadlineColor='blue';}
-      let cs='';
-      if(emp.cert){const ex=new Date(emp.cert);ex.setFullYear(ex.getFullYear()+3);const dl=Math.floor((ex-TODAY)/864e5);
-        if(dl<0)cs='просрочено';else if(dl<=30)cs='истекает';else cs='обучен';}
-      return{РД:emp.rd||'',Подразделение:emp.dept,ФИО:emp.name,Код:emp.code,Должность:emp.pos,
-        'Дата приёма':emp.hire?emp.hire.toLocaleDateString('ru-RU'):'',
-        'Блок 1':b1,'Блок 2':b2,'Блок 3':b3,'Итоговый тест':it,
-        'Статус обучения':trainStatus,'Статус по срокам':deadlineStatus,
-        'Дата обучения':emp.cert?emp.cert.toLocaleDateString('ru-RU'):'','Подписи собраны':'',
-        'Срок удостоверения':cs,
-        _trainColor:trainColor,_deadlineColor:deadlineColor,_isHead:ih};
-    };
-
-    const allRows=[],activeRows=[];
-    empR.forEach(e=>{const r=mkRow(e,false);allRows.push(r);if(!e.fire)activeRows.push(r);});
-    headR.forEach(e=>{const r=mkRow(e,true);allRows.push(r);if(!e.fire)activeRows.push(r);});
-    activeRows.forEach(r=>{if(!r._isHead){total++;if(r._deadlineColor==='green')green++;else if(r._deadlineColor==='red')red++;else yellow++;}});
-    allRows.forEach(r=>{if(!r._isHead){totalAll++;if(r['Статус обучения']==='пройдено')trainedAll++;}});
-
-    setProgress(75);addLog('Генерирую Excel...');
-    const H=['РД','Подразделение','ФИО','Код','Должность','Дата приёма','Блок 1','Блок 2','Блок 3','Итоговый тест','Статус обучения','Статус по срокам','Дата обучения','Подписи собраны','Срок удостоверения'];
-    const W=[8,36,30,12,28,13,10,10,10,14,18,18,15,15,18];
-    const FLS={hdr:{fgColor:{rgb:'2F5496'},patternType:'solid'},sg:{fgColor:{rgb:'C6EFCE'},patternType:'solid'},sr:{fgColor:{rgb:'FFC7CE'},patternType:'solid'},sy:{fgColor:{rgb:'FFEB9C'},patternType:'solid'},sb:{fgColor:{rgb:'D6E4F0'},patternType:'solid'}};
-    const FC={green:'006100',red:'9C0006',yellow:'9C6500',blue:'1F4E79'};
-    const cMap={green:'sg',red:'sr',yellow:'sy',blue:'sb'};
-    const ccMap={обучен:'sg',просрочено:'sr',истекает:'sy'};
-    const cfMap={обучен:'006100',просрочено:'9C0006',истекает:'9C6500'};
-    const hS={fill:FLS.hdr,font:{bold:true,color:{rgb:'FFFFFF'},sz:10},alignment:{horizontal:'center',vertical:'center',wrapText:true}};
-    const nS={font:{sz:10},alignment:{vertical:'center'}};
-
-    const mkSheet=rows=>{
-      const ws={};
-      H.forEach((h,ci)=>{ws[XLSX.utils.encode_cell({r:0,c:ci})]={v:h,t:'s',s:hS};});
-      rows.forEach((row,ri)=>{
-        H.forEach((h,ci)=>{
-          const cell={v:String(row[h]??''),t:'s'};
-          if(ci===10){// Статус обучения — цвет от _trainColor
-            const tc=row._trainColor;const sf=FLS[cMap[tc]]||FLS.sr;const sfc=FC[tc]||'9C0006';
-            cell.s={fill:sf,font:{bold:true,sz:10,color:{rgb:sfc}},alignment:{vertical:'center'}};
-          }else if(ci===11){// Статус по срокам — цвет от _deadlineColor
-            const dc=row._deadlineColor;const sf=FLS[cMap[dc]]||FLS.sr;const sfc=FC[dc]||'9C0006';
-            cell.s={fill:sf,font:{bold:true,sz:10,color:{rgb:sfc}},alignment:{vertical:'center'}};
-          }else if(ci===14){// Срок удостоверения — свой цвет
-            const cv=row['Срок удостоверения'];cell.s=cv&&ccMap[cv]?{fill:FLS[ccMap[cv]],font:{bold:true,sz:10,color:{rgb:cfMap[cv]}},alignment:{vertical:'center'}}:nS;
-          }else{cell.s=nS;}
-          ws[XLSX.utils.encode_cell({r:ri+1,c:ci})]=cell;
-        });
-      });
-      ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:H.length-1}});
-      ws['!cols']=W.map(w=>({wch:w}));ws['!autofilter']={ref:'A1:O'+(rows.length+1)};return ws;
-    };
-
-    const HH=['ФИО','Должность','Дата приёма','Статус','Дата обучения','Подписи собраны','Срок удостоверения'];
-    const WH=[30,28,13,14,15,15,18];
-    const mkHeadSheet=rows=>{
-      const ws={};
-      HH.forEach((h,ci)=>{ws[XLSX.utils.encode_cell({r:0,c:ci})]={v:h,t:'s',s:hS};});
-      rows.forEach((row,ri)=>{
-        const vals=[row.ФИО,row.Должность,row['Дата приёма'],'руководитель',row['Дата обучения'],row['Подписи собраны'],row['Срок удостоверения']];
-        vals.forEach((v,ci)=>{
-          const cell={v:String(v??''),t:'s'};
-          if(ci===6){const cv=row['Срок удостоверения'];cell.s=cv&&ccMap[cv]?{fill:FLS[ccMap[cv]],font:{bold:true,sz:10,color:{rgb:cfMap[cv]}},alignment:{vertical:'center'}}:nS;}
-          else if(ci===3){cell.s={fill:FLS.sb,font:{bold:true,sz:10,color:{rgb:'1F4E79'}},alignment:{vertical:'center'}};}
-          else{cell.s=nS;}
-          ws[XLSX.utils.encode_cell({r:ri+1,c:ci})]=cell;
-        });
-      });
-      ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:HH.length-1}});
-      ws['!cols']=WH.map(w=>({wch:w}));ws['!autofilter']={ref:'A1:G'+(rows.length+1)};return ws;
-    };
-
-    function mkStatSheet(){
-      const ws={};const dt=TODAY.toLocaleDateString('ru-RU');
-      const pG=(green/total*100).toFixed(1),pR=(red/total*100).toFixed(1),pY=(yellow/total*100).toFixed(1),pTA=(trainedAll/totalAll*100).toFixed(1);
-      const c=(r,ci,v,s)=>{ws[XLSX.utils.encode_cell({r,c:ci})]={v:String(v??''),t:'s',s};};
-      const bS={font:{sz:11,bold:true},alignment:{vertical:'center'}};
-      c(0,0,'ДЕЙСТВУЮЩИЕ — '+dt,{fill:FLS.hdr,font:{bold:true,color:{rgb:'FFFFFF'},sz:11},alignment:{horizontal:'left',vertical:'center'}});c(0,1,'',{fill:FLS.hdr});c(0,2,'',{fill:FLS.hdr});
-      c(1,0,'Категория',bS);c(1,1,'Кол-во',bS);c(1,2,'Доля',bS);
-      c(2,0,'Всего',nS);c(2,1,total,nS);c(2,2,'100%',nS);
-      c(3,0,'Обучены',nS);c(3,1,green,{fill:FLS.sg,font:{bold:true,sz:10,color:{rgb:'006100'}},alignment:{vertical:'center'}});c(3,2,pG+'%',{fill:FLS.sg,font:{bold:true,sz:10,color:{rgb:'006100'}},alignment:{vertical:'center'}});
-      c(4,0,'Просрочено',nS);c(4,1,red,{fill:FLS.sr,font:{bold:true,sz:10,color:{rgb:'9C0006'}},alignment:{vertical:'center'}});c(4,2,pR+'%',{fill:FLS.sr,font:{bold:true,sz:10,color:{rgb:'9C0006'}},alignment:{vertical:'center'}});
-      c(5,0,'В сроках',nS);c(5,1,yellow,{fill:FLS.sy,font:{bold:true,sz:10,color:{rgb:'9C6500'}},alignment:{vertical:'center'}});c(5,2,pY+'%',{fill:FLS.sy,font:{bold:true,sz:10,color:{rgb:'9C6500'}},alignment:{vertical:'center'}});
-      c(7,0,'ЗА ВСЁ ВРЕМЯ',{fill:FLS.hdr,font:{bold:true,color:{rgb:'FFFFFF'},sz:11},alignment:{horizontal:'left',vertical:'center'}});c(7,1,'',{fill:FLS.hdr});c(7,2,'',{fill:FLS.hdr});
-      c(8,0,'Категория',bS);c(8,1,'Кол-во',bS);c(8,2,'Доля',bS);
-      c(9,0,'Всего',nS);c(9,1,totalAll,nS);c(9,2,'100%',nS);
-      c(10,0,'Обучены',nS);c(10,1,trainedAll,{fill:FLS.sg,font:{bold:true,sz:10,color:{rgb:'006100'}},alignment:{vertical:'center'}});c(10,2,pTA+'%',{fill:FLS.sg,font:{bold:true,sz:10,color:{rgb:'006100'}},alignment:{vertical:'center'}});
-      c(11,0,'Не обучены',nS);c(11,1,totalAll-trainedAll,{fill:FLS.sr,font:{bold:true,sz:10,color:{rgb:'9C0006'}},alignment:{vertical:'center'}});c(11,2,(100-pTA).toFixed(1)+'%',{fill:FLS.sr,font:{bold:true,sz:10,color:{rgb:'9C0006'}},alignment:{vertical:'center'}});
-      ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:11,c:2}});ws['!cols']=[{wch:32},{wch:12},{wch:10}];
-      ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:2}},{s:{r:7,c:0},e:{r:7,c:2}}];return ws;
-    }
-
-    const headActive=activeRows.filter(r=>r._isHead);
-    const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,mkSheet(allRows),'С уволенными');
-    XLSX.utils.book_append_sheet(wb,mkSheet(activeRows),'Без уволенных');
-    XLSX.utils.book_append_sheet(wb,mkHeadSheet(headActive),'Руководители');
-    XLSX.utils.book_append_sheet(wb,mkStatSheet(),'Статистика');
-    const dd=String(TODAY.getDate()).padStart(2,'0'),mm=String(TODAY.getMonth()+1).padStart(2,'0');
-    const fname='Свод_ОТ_'+dd+'_'+mm+'_'+TODAY.getFullYear()+'.xlsx';
-    XLSX.writeFile(wb,fname,{bookType:'xlsx',cellStyles:true});
-    setProgress(100);addLog('✓ Скачан: '+fname);
-
+    setProgress(10);addLog('Загружаю файлы...');
+    const[b1,b2,b3,it,emp]=await Promise.all([FILES.b1,FILES.b2,FILES.b3,FILES.it,FILES.emp].map(readFile));
+    setProgress(40);
+    const res=SVOD.build({b1,b2,b3,it,emp},{days:DAYS,today:TODAY});
+    res.log.forEach(addLog);
+    setProgress(80);addLog('Генерирую Excel...');
+    XLSX.writeFile(res.wb,res.fname,{bookType:'xlsx',compression:true});
+    setProgress(100);addLog('✓ Скачан: '+res.fname);
+    const S=res.stats,p=x=>S.total?(x/S.total*100):0;
     document.getElementById('statDate').textContent=TODAY.toLocaleDateString('ru-RU');
-    document.getElementById('kGreen').textContent=green.toLocaleString('ru');document.getElementById('kGreenPct').textContent=(green/total*100).toFixed(1)+'%';
-    document.getElementById('kRed').textContent=red.toLocaleString('ru');document.getElementById('kRedPct').textContent=(red/total*100).toFixed(1)+'%';
-    document.getElementById('kYellow').textContent=yellow.toLocaleString('ru');document.getElementById('kYellowPct').textContent=(yellow/total*100).toFixed(1)+'%';
-    setTimeout(()=>{document.getElementById('pb1').style.width=(green/total*100)+'%';document.getElementById('pb2').style.width=(red/total*100)+'%';document.getElementById('pb3').style.width=(yellow/total*100)+'%';},100);
-    document.getElementById('pb1lbl').textContent=green+' из '+total;document.getElementById('pb2lbl').textContent=red+' из '+total;document.getElementById('pb3lbl').textContent=yellow+' из '+total;
-    if(pieChartInst)pieChartInst.destroy();
-    pieChartInst=new Chart(document.getElementById('pieChart'),{type:'doughnut',data:{labels:['Обучены','Просрочено','В сроках'],datasets:[{data:[green,red,yellow],backgroundColor:['#3B6D11','#A32D2D','#854F0B'],borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:8}}}}});
-    if(barChartInst)barChartInst.destroy();
-    barChartInst=new Chart(document.getElementById('barChart'),{type:'bar',data:{labels:['Всего','Обучены','Не обучены'],datasets:[{data:[totalAll,trainedAll,totalAll-trainedAll],backgroundColor:['#185FA5','#3B6D11','#A32D2D'],borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#f0f0f0'}}}}});
+    [['kGreen','green'],['kRed','red'],['kYellow','yellow']].forEach(([id,k])=>{document.getElementById(id).textContent=S[k].toLocaleString('ru');document.getElementById(id+'Pct').textContent=p(S[k]).toFixed(1)+'%';});
+    setTimeout(()=>{document.getElementById('pb1').style.width=p(S.green)+'%';document.getElementById('pb2').style.width=p(S.red)+'%';document.getElementById('pb3').style.width=p(S.yellow)+'%';},100);
+    document.getElementById('pb1lbl').textContent=S.green+' из '+S.total;document.getElementById('pb2lbl').textContent=S.red+' из '+S.total;document.getElementById('pb3lbl').textContent=S.yellow+' из '+S.total;
+    if(window.Chart){
+      if(pieChartInst)pieChartInst.destroy();
+      pieChartInst=new Chart(document.getElementById('pieChart'),{type:'doughnut',data:{labels:['Обучены','Просрочено','В сроках'],datasets:[{data:[S.green,S.red,S.yellow],backgroundColor:['#3B6D11','#A32D2D','#854F0B'],borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:8}}}}});
+      if(barChartInst)barChartInst.destroy();
+      barChartInst=new Chart(document.getElementById('barChart'),{type:'bar',data:{labels:['Всего','Обучены','Не обучены'],datasets:[{data:[S.totalAll,S.trainedAll,S.totalAll-S.trainedAll],backgroundColor:['#185FA5','#3B6D11','#A32D2D'],borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#f0f0f0'}}}}});
+    }
     document.getElementById('statSection').classList.add('show');
-  }catch(e){addLog('Ошибка: '+e.message);console.error(e);}
+  }catch(e){addLog('✗ Ошибка: '+e.message);console.error(e);setProgress(0);}
   btn.disabled=false;btn.textContent='Сформировать свод ↓';
 }
 </script>
