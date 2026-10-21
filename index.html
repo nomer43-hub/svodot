@@ -264,7 +264,7 @@ function build(sheets,opt){
   act.forEach(r=>{if(r.ih)return;S.total++;S[r.dc]++;if(r.ds==='нет данных')S.noData++;});
   all.forEach(r=>{if(r.ih)return;S.totalAll++;if(r.ts==='пройдено')S.trainedAll++;});
 
-  // нет в 1С (только РД-X) → «Обучен уволен»
+  // нет в 1С (только РД-X) → «Есть в блоках нет в 1С»
   const gone=[];let otherDir=0;
   Object.keys(meta).forEach(code=>{if(allCodes.has(code))return;const m=meta[code];
     if(!/^РД-\d+$/.test(m.rd)){otherDir++;return;}
@@ -272,7 +272,7 @@ function build(sheets,opt){
     r.ap=isPass(r.b1)&&isPass(r.b2)&&isPass(r.b3)&&isPass(r.it);gone.push(r);});
   gone.sort((a,b)=>a.m.rd.localeCompare(b.m.rd,'ru',{numeric:true})||a.m.dept.localeCompare(b.m.dept,'ru')||a.m.name.localeCompare(b.m.name,'ru'));
   S.goneAll=gone.length;S.goneTrained=gone.filter(r=>r.ap).length;
-  log.push('Нет в 1С (РД-1…РД-9) → «Обучен уволен»: '+gone.length+' чел., из них прошли все 4 блока: '+S.goneTrained);
+  log.push('Нет в 1С (РД-1…РД-9) → «Есть в блоках нет в 1С»: '+gone.length+' чел., из них прошли все 4 блока: '+S.goneTrained);
   log.push('Нет в 1С, другие дирекции (склад и пр.) — не включены: '+otherDir);
 
   const H=['РД','Подразделение','ФИО','Код','Должность','Дата приёма','Блок 1','Блок 2','Блок 3','Итоговый тест','Статус обучения','Статус по срокам','Дата обучения','Подписи собраны','Срок удостоверения'];
@@ -315,7 +315,7 @@ function build(sheets,opt){
     put(10,0,sCell('Всего',ST.n));put(10,1,nCell(S.totalAll,ST.n));put(10,2,nCell(S.totalAll?1:0,ST.n,P));
     put(11,0,sCell('Обучены',ST.n));put(11,1,nCell(S.trainedAll,ST.green));put(11,2,nCell(pct(S.trainedAll,S.totalAll),ST.green,P));
     put(12,0,sCell('Не обучены',ST.n));put(12,1,nCell(S.totalAll-S.trainedAll,ST.red));put(12,2,nCell(pct(S.totalAll-S.trainedAll,S.totalAll),ST.red,P));
-    put(14,0,sCell('ОБУЧЕН УВОЛЕН (нет в 1С)',ST.sect));put(14,1,sCell('',ST.sect));put(14,2,sCell('',ST.sect));
+    put(14,0,sCell('ЕСТЬ В БЛОКАХ, НЕТ В 1С',ST.sect));put(14,1,sCell('',ST.sect));put(14,2,sCell('',ST.sect));
     put(15,0,sCell('Всего',ST.n));put(15,1,nCell(S.goneAll,ST.n));put(15,2,nCell(S.goneAll?1:0,ST.n,P));
     put(16,0,sCell('Прошли все 4 блока',ST.n));put(16,1,nCell(S.goneTrained,ST.green));put(16,2,nCell(pct(S.goneTrained,S.goneAll),ST.green,P));
     put(17,0,sCell('Не завершили',ST.n));put(17,1,nCell(S.goneAll-S.goneTrained,ST.red));put(17,2,nCell(pct(S.goneAll-S.goneTrained,S.goneAll),ST.red,P));
@@ -326,7 +326,7 @@ function build(sheets,opt){
   XLSX.utils.book_append_sheet(wb,mkSheet(all),'С уволенными');
   XLSX.utils.book_append_sheet(wb,mkSheet(act),'Без уволенных');
   XLSX.utils.book_append_sheet(wb,mkHead(act.filter(r=>r.ih)),'Руководители');
-  XLSX.utils.book_append_sheet(wb,mkGone(gone),'Обучен уволен');
+  XLSX.utils.book_append_sheet(wb,mkGone(gone),'Есть в блоках нет в 1С');
   XLSX.utils.book_append_sheet(wb,mkStat(),'Статистика');
   const fname='Свод_ОТ_'+ruDate(TODAY).replace(/\./g,'_')+'.xlsx';
   return{wb,fname,stats:S,log};
