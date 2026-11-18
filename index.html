@@ -179,6 +179,7 @@ function parseEmp(ws,log){
     if(h.startsWith('дата увольнения')&&cm.fire==null)cm.fire=c;
     if(h.includes('физическое лицо')&&h.endsWith('код')&&cm.code==null)cm.code=c;
     if(h.includes('дата получения удостовер')&&cm.cert==null)cm.cert=c;
+    if(h.includes('дата внешнего обучения')&&cm.ext==null)cm.ext=c;
     if(h.includes('вышестоящее подразделение')&&cm.rd==null)cm.rd=c;
   }
   if(cm.hire==null&&H[16]!=null){cm.hire=16;log.push('⚠ Колонка «Дата приема» не найдена по названию — беру колонку 17 («'+H[16]+'»)');}
@@ -188,6 +189,7 @@ function parseEmp(ws,log){
   if(cm.fire==null)log.push('⚠ Колонка «Дата увольнения» не найдена — все считаются действующими');
   if(cm.cert==null)log.push('⚠ Колонка «Дата получения удостоверения» не найдена — «Дата обучения» будет пустой');
   if(cm.rd==null)log.push('⚠ Колонка «Вышестоящее подразделение» не найдена — РД будет пустым');
+  if(cm.ext==null)log.push('⚠ Колонка «Дата внешнего обучения» не найдена — у руководителей «Дата обучения» и «Срок удостоверения» будут пустыми');
 
   const isRuler=d=>d==='Региональное управление по работе с универмагами'||d.startsWith('Универмаг');
   const isHead=p=>{const l=norm(p);return l.includes('управляющий')||l.includes('региональный директор')||l.includes('заместитель регионального директора');};
@@ -209,9 +211,11 @@ function parseEmp(ws,log){
       fire:cm.fire!=null?parseDate(val(ws,r,cm.fire)):null,
       cert:cm.cert!=null?parseDate(val(ws,r,cm.cert)):null,
       rd:cm.rd!=null?String(val(ws,r,cm.rd)??'').trim():''};
-    (isHead(row.pos)?headR:empR).push(row);
+    row.ext=cm.ext!=null?parseDate(val(ws,r,cm.ext)):null;
+    if(isHead(row.pos)){row.cert=row.ext;headR.push(row);}else empR.push(row); // у руководителей — только внешняя дата, внутреннюю не подставляем
   }
   log.push('1С: прочитано строк '+read+', без ФИО/Кода '+noCode+', отсеяно фильтром подразделений '+filtered);
+  log.push('Руководители: внешняя дата обучения указана у '+headR.filter(x=>x.ext).length+' из '+headR.length);
   if(badHire)log.push('⚠ Нераспознанная дата приёма у '+badHire+' чел. — статус «нет данных»');
   return{empR,headR,allCodes};
 }
@@ -252,7 +256,7 @@ function build(sheets,opt){
       ts=ap?'пройдено':'не пройдено';tc=ap?'green':'red';
       const dh=e.hire?Math.floor((TODAY-e.hire)/864e5):-1;
       if(ap){ds='обучен';dc='green';}else if(dh<0){ds='нет данных';dc='red';}else if(dh>DAYS){ds='просрочено';dc='red';}else{ds='в сроках';dc='yellow';}
-    }else{ts=ds='руководитель';tc=dc='blue';}
+    }else{ts=ds=e.ext?'пройдено (рук.)':'руководитель';tc=dc='blue';}
     let cs='';
     if(e.cert){const ex=new Date(e.cert);ex.setFullYear(ex.getFullYear()+3);const dl=Math.floor((ex-TODAY)/864e5);cs=dl<0?'просрочено':dl<=30?'истекает':'обучен';}
     return{e,ih,b1,b2,b3,it,ts,tc,ds,dc,cs};
@@ -290,7 +294,7 @@ function build(sheets,opt){
   const HH=['ФИО','Должность','Дата приёма','Статус','Дата обучения','Подписи собраны','Срок удостоверения'];
   const mkHead=rows=>{
     const ws={};HH.forEach((h,c)=>ws[enc(0,c)]=sCell(h,ST.hdr));
-    rows.forEach((r,i)=>{const e=r.e;[sCell(e.name,ST.n),sCell(e.pos,ST.n),dCell(e.hire,ST.n),sCell('руководитель',ST.blue),dCell(e.cert,ST.n),sCell('',ST.n),sCell(r.cs,r.cs?ST[certColor[r.cs]]:ST.n)].forEach((x,c)=>ws[enc(i+1,c)]=x);});
+    rows.forEach((r,i)=>{const e=r.e;[sCell(e.name,ST.n),sCell(e.pos,ST.n),dCell(e.hire,ST.n),sCell(r.ts,ST.blue),dCell(e.cert,ST.n),sCell('',ST.n),sCell(r.cs,r.cs?ST[certColor[r.cs]]:ST.n)].forEach((x,c)=>ws[enc(i+1,c)]=x);});
     ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:HH.length-1}});
     ws['!cols']=[30,28,13,14,15,15,18].map(w=>({wch:w}));ws['!autofilter']={ref:'A1:G'+(rows.length+1)};return ws;
   };
